@@ -11,40 +11,26 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
-// Liste des origines autorisées
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  process.env.FRONTEND_URL
-].filter(Boolean);
-
-console.log('🔐 Allowed CORS origins:', allowedOrigins);
-
-// Configuration CORS dynamique
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Autoriser les requêtes sans origin (comme curl, Postman)
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('❌ CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+// CORS: Autoriser toutes les origines pour le moment (debug)
+app.use(cors({
+  origin: true,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
-};
+}));
 
-// Middleware CORS global
-app.use(cors(corsOptions));
+// Headers CORS manuels pour être sûr
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-// Répondre explicitement aux préflight OPTIONS
-app.options("*", cors(corsOptions));
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 // Parser JSON et urlencoded
 app.use(express.json());
@@ -62,8 +48,8 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     message: 'RedacSeo API is running',
     timestamp: new Date().toISOString(),
-    allowedOrigins: allowedOrigins,
-    frontendUrl: process.env.FRONTEND_URL || 'NOT SET'
+    frontendUrl: process.env.FRONTEND_URL || 'NOT SET',
+    nodeEnv: process.env.NODE_ENV || 'NOT SET'
   });
 });
 
