@@ -16,6 +16,7 @@ const Redaction = () => {
   const [metaSuggestions, setMetaSuggestions] = useState([]);
   const [articleName, setArticleName] = useState('');
   const [showSavePopup, setShowSavePopup] = useState(false);
+  const [showClearPopup, setShowClearPopup] = useState(false);
   const { checkRules } = useRules();
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
 
@@ -64,16 +65,16 @@ const Redaction = () => {
   };
 
   const handleClearContent = () => {
-    if (window.confirm('Êtes-vous sûr de vouloir effacer tout le contenu de l\'article ? Cette action est irréversible.')) {
-      setContent('');
-      setTitle('');
-      setMetaDescription('');
-      setKeyword('');
-      setSecondaryKeywords([]);
-      setTitleSuggestions([]);
-      setMetaSuggestions([]);
-      setResults([]);
-    }
+    setShowClearPopup(true);
+  };
+
+  const confirmClearContent = () => {
+    setContent('');
+    setShowClearPopup(false);
+  };
+
+  const cancelClearContent = () => {
+    setShowClearPopup(false);
   };
 
   const addSecondaryKeyword = () => {
@@ -224,6 +225,9 @@ const Redaction = () => {
         <div className="redaction-header">
           <h2>Rédaction SEO</h2>
           <div className="header-buttons">
+            <button onClick={() => handleSave(true)} className="save-button">
+              Sauvegarder
+            </button>
             <button onClick={generateSuggestions} className="suggest-button">
               Générer des suggestions
             </button>
@@ -239,6 +243,24 @@ const Redaction = () => {
               <div className="save-popup-icon">✓</div>
               <h3>Article sauvegardé !</h3>
               <p>Vos modifications ont été enregistrées avec succès</p>
+            </div>
+          </div>
+        )}
+
+        {showClearPopup && (
+          <div className="clear-popup-overlay">
+            <div className="clear-popup-content">
+              <div className="clear-popup-icon">⚠️</div>
+              <h3>Effacer le contenu ?</h3>
+              <p>Êtes-vous sûr de vouloir effacer le contenu de l'article ? Cette action est irréversible.</p>
+              <div className="clear-popup-buttons">
+                <button onClick={cancelClearContent} className="cancel-button">
+                  Annuler
+                </button>
+                <button onClick={confirmClearContent} className="confirm-button">
+                  Effacer
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -317,7 +339,12 @@ const Redaction = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="content-editor">Contenu de l'article</label>
+              <div className="content-label-wrapper">
+                <label htmlFor="content-editor">Contenu de l'article</label>
+                <button onClick={handleClearContent} className="clear-icon-button" title="Effacer le contenu">
+                  🗑️
+                </button>
+              </div>
               <div className="content-info">
                 Collez votre article ici. Les mots-clés seront automatiquement mis en gras.
               </div>
@@ -330,15 +357,6 @@ const Redaction = () => {
                 rows="20"
               />
               <span className="char-count">{getWordCount()} mots</span>
-            </div>
-
-            <div className="content-actions">
-              <button onClick={() => handleSave(true)} className="save-button">
-                Sauvegarder
-              </button>
-              <button onClick={handleClearContent} className="clear-button">
-                Effacer le contenu
-              </button>
             </div>
 
             {titleSuggestions.length > 0 && (
