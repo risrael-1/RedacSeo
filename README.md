@@ -13,8 +13,12 @@ Application web complète pour la gestion et l'optimisation de contenus SEO. Cr�
 ### Gestion des Articles
 - Création et sauvegarde d'articles multiples
 - Auto-sauvegarde toutes les 30 secondes
+- Popup de confirmation animée lors de la sauvegarde
 - Liste des articles sauvegardés par utilisateur
 - Chargement et suppression d'articles
+- Bouton "Effacer" pour réinitialiser le contenu
+- Navigation depuis le Dashboard vers l'éditeur
+- Synchronisation en temps réel avec le Dashboard
 - Compteur de mots en temps réel
 
 ### Éditeur SEO
@@ -38,9 +42,12 @@ Application web complète pour la gestion et l'optimisation de contenus SEO. Cr�
 ### Interface Utilisateur
 - Design moderne et responsive
 - Navigation intuitive avec navbar
-- Dashboard de gestion des articles
+- Dashboard de gestion des articles avec statistiques
+- Édition et suppression d'articles depuis le Dashboard
+- Popup de sauvegarde animée avec icône de succès
 - Suggestions cliquables pour titre et meta description
 - Tags visuels pour les mots-clés secondaires
+- Badges de statut colorés (Brouillon, En cours, Terminé)
 
 ## 🛠️ Technologies Utilisées
 
