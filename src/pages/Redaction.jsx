@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRules } from '../context/RulesContext';
 import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
-import { calculateSEOScore } from '../utils/seoScoreCalculator';
+import { calculateSEOScore, getAllSEOCriteriaStatus, getSEOScoreLevel } from '../utils/seoScoreCalculator';
 import Navbar from '../components/Navbar';
 import './Redaction.css';
 
@@ -238,6 +238,15 @@ const Redaction = () => {
     return content.trim().split(/\s+/).filter(w => w.length > 0).length;
   };
 
+  // Calcul en temps réel du score et des critères SEO
+  const seoAnalysis = useMemo(() => {
+    const score = calculateSEOScore(content, title, metaDescription, keyword);
+    const criteria = getAllSEOCriteriaStatus(content, title, metaDescription, keyword);
+    const level = getSEOScoreLevel(score);
+    const validCount = criteria.filter(c => c.isValid).length;
+    return { score, criteria, level, validCount, totalCount: criteria.length };
+  }, [content, title, metaDescription, keyword]);
+
   return (
     <div className="redaction-container">
       <Navbar />
@@ -472,6 +481,48 @@ const Redaction = () => {
           </div>
 
           <div className="results-section">
+            {/* Panneau Score SEO en temps réel */}
+            <div className="seo-realtime-panel">
+              <div className="seo-score-header">
+                <h3>Score SEO</h3>
+                <div className="seo-score-display" style={{ backgroundColor: seoAnalysis.level.color }}>
+                  {seoAnalysis.score}/100
+                </div>
+              </div>
+              <div className="seo-score-level" style={{ color: seoAnalysis.level.color }}>
+                {seoAnalysis.level.level}
+              </div>
+              <div className="seo-criteria-progress">
+                <span>{seoAnalysis.validCount}/{seoAnalysis.totalCount} critères respectés</span>
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${(seoAnalysis.validCount / seoAnalysis.totalCount) * 100}%`,
+                      backgroundColor: seoAnalysis.level.color
+                    }}
+                  ></div>
+                </div>
+              </div>
+              <div className="seo-criteria-list-realtime">
+                {seoAnalysis.criteria.map(criterion => (
+                  <div
+                    key={criterion.id}
+                    className={`seo-criterion-item ${criterion.isValid ? 'valid' : 'invalid'}`}
+                  >
+                    <span className="criterion-status">
+                      {criterion.isValid ? '✓' : '✗'}
+                    </span>
+                    <span className="criterion-icon">{criterion.icon}</span>
+                    <div className="criterion-info">
+                      <span className="criterion-label">{criterion.label}</span>
+                      <span className="criterion-detail">{criterion.detail}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="saved-articles">
               <h3>Articles sauvegardés</h3>
               <button onClick={createNewArticle} className="new-article-btn">+ Nouvel article</button>

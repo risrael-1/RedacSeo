@@ -305,3 +305,150 @@ export const getUnmetSEOCriteria = (content, title, metaDescription, keyword) =>
 
   return unmetCriteria;
 };
+
+/**
+ * Retourne le statut de tous les critères SEO (respectés et non respectés)
+ * @param {string} content - Le contenu de l'article
+ * @param {string} title - Le titre de l'article
+ * @param {string} metaDescription - La meta description
+ * @param {string} keyword - Le mot-clé principal
+ * @returns {Array} Liste de tous les critères avec leur statut
+ */
+export const getAllSEOCriteriaStatus = (content, title, metaDescription, keyword) => {
+  const criteria = [];
+
+  // Si pas de contenu
+  if (!content || !content.trim()) {
+    return [
+      { id: 'content-length', label: 'Longueur du contenu (300+ mots)', icon: '📝', isValid: false, detail: '0 mots' },
+      { id: 'keyword-title', label: 'Mot-clé dans le titre', icon: '🎯', isValid: false, detail: 'Aucun contenu' },
+      { id: 'keyword-meta', label: 'Mot-clé dans la meta', icon: '📄', isValid: false, detail: 'Aucun contenu' },
+      { id: 'meta-length', label: 'Meta description (120-160 car.)', icon: '📄', isValid: false, detail: '0 caractères' },
+      { id: 'keyword-density', label: 'Densité mot-clé (1-2.5%)', icon: '💎', isValid: false, detail: 'Aucun contenu' },
+      { id: 'h1-structure', label: 'Structure H1 (1 seul)', icon: '🏷️', isValid: false, detail: 'Aucun H1' },
+      { id: 'h2-structure', label: 'Structure H2 (2+ recommandé)', icon: '📋', isValid: false, detail: '0 H2' },
+      { id: 'strong-tags', label: 'Mise en gras (3+ balises)', icon: '💪', isValid: false, detail: '0 balises' },
+      { id: 'title-length', label: 'Longueur titre (30-60 car.)', icon: '📌', isValid: false, detail: '0 caractères' },
+      { id: 'keyword-intro', label: 'Mot-clé dans les 100 premiers mots', icon: '⚡', isValid: false, detail: 'Aucun contenu' }
+    ];
+  }
+
+  const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+
+  // 1. Longueur du contenu
+  criteria.push({
+    id: 'content-length',
+    label: 'Longueur du contenu (300+ mots)',
+    icon: '📝',
+    isValid: wordCount >= 300,
+    detail: `${wordCount} mots`
+  });
+
+  // 2. Mot-clé dans le titre
+  const hasKeywordInTitle = keyword && title && title.toLowerCase().includes(keyword.toLowerCase());
+  criteria.push({
+    id: 'keyword-title',
+    label: 'Mot-clé dans le titre',
+    icon: '🎯',
+    isValid: hasKeywordInTitle,
+    detail: hasKeywordInTitle ? 'Présent' : 'Absent'
+  });
+
+  // 3. Mot-clé dans la meta description
+  const hasKeywordInMeta = keyword && metaDescription && metaDescription.toLowerCase().includes(keyword.toLowerCase());
+  criteria.push({
+    id: 'keyword-meta',
+    label: 'Mot-clé dans la meta',
+    icon: '📄',
+    isValid: hasKeywordInMeta,
+    detail: hasKeywordInMeta ? 'Présent' : 'Absent'
+  });
+
+  // 4. Longueur de la meta description
+  const metaLen = metaDescription ? metaDescription.length : 0;
+  const isMetaLengthValid = metaLen >= 120 && metaLen <= 160;
+  criteria.push({
+    id: 'meta-length',
+    label: 'Meta description (120-160 car.)',
+    icon: '📄',
+    isValid: isMetaLengthValid,
+    detail: `${metaLen} caractères`
+  });
+
+  // 5. Densité du mot-clé
+  let density = 0;
+  let keywordCount = 0;
+  if (keyword && content && wordCount > 0) {
+    const contentLower = content.toLowerCase();
+    const keywordLower = keyword.toLowerCase();
+    const keywordRegex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    const matches = contentLower.match(keywordRegex);
+    keywordCount = matches ? matches.length : 0;
+    density = (keywordCount / wordCount) * 100;
+  }
+  const isDensityValid = density >= 1 && density <= 2.5;
+  criteria.push({
+    id: 'keyword-density',
+    label: 'Densité mot-clé (1-2.5%)',
+    icon: '💎',
+    isValid: isDensityValid,
+    detail: `${density.toFixed(1)}% (${keywordCount} fois)`
+  });
+
+  // 6. Structure H1
+  const h1Count = (content.match(/<h1[^>]*>/gi) || []).length;
+  criteria.push({
+    id: 'h1-structure',
+    label: 'Structure H1 (1 seul)',
+    icon: '🏷️',
+    isValid: h1Count === 1,
+    detail: `${h1Count} H1`
+  });
+
+  // 7. Structure H2
+  const h2Count = (content.match(/<h2[^>]*>/gi) || []).length;
+  criteria.push({
+    id: 'h2-structure',
+    label: 'Structure H2 (2+ recommandé)',
+    icon: '📋',
+    isValid: h2Count >= 2,
+    detail: `${h2Count} H2`
+  });
+
+  // 8. Contenu en gras
+  const strongCount = (content.match(/<strong[^>]*>/gi) || []).length;
+  criteria.push({
+    id: 'strong-tags',
+    label: 'Mise en gras (3+ balises)',
+    icon: '💪',
+    isValid: strongCount >= 3,
+    detail: `${strongCount} balises`
+  });
+
+  // 9. Longueur du titre
+  const titleLen = title ? title.length : 0;
+  const isTitleLengthValid = titleLen >= 30 && titleLen <= 60;
+  criteria.push({
+    id: 'title-length',
+    label: 'Longueur titre (30-60 car.)',
+    icon: '📌',
+    isValid: isTitleLengthValid,
+    detail: `${titleLen} caractères`
+  });
+
+  // 10. Mot-clé dans les premiers 100 mots
+  let hasKeywordInIntro = false;
+  if (keyword && content) {
+    const first100Words = content.trim().split(/\s+/).slice(0, 100).join(' ');
+    hasKeywordInIntro = first100Words.toLowerCase().includes(keyword.toLowerCase());
+  }
+  criteria.push({
+    id: 'keyword-intro',
+    label: 'Mot-clé dans les 100 premiers mots',
+    icon: '⚡',
+    isValid: hasKeywordInIntro,
+    detail: hasKeywordInIntro ? 'Présent' : 'Absent'
+  });
+
+  return criteria;
+};
