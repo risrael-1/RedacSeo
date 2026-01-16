@@ -7,23 +7,79 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleEmailChange = (e) => {
+    const value = e.target.value;
+    setEmail(value);
+    setEmailError('');
     setError('');
 
-    if (!email || !password) {
-      setError('Veuillez remplir tous les champs');
-      return;
+    if (value && !validateEmail(value)) {
+      setEmailError('Format d\'email invalide');
+    }
+  };
+
+  const handlePasswordChange = (e) => {
+    const value = e.target.value;
+    setPassword(value);
+    setPasswordError('');
+    setError('');
+
+    if (value && value.length < 6) {
+      setPasswordError('Le mot de passe doit contenir au moins 6 caractères');
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setEmailError('');
+    setPasswordError('');
+
+    // Validation
+    let hasError = false;
+
+    if (!email) {
+      setEmailError('L\'email est requis');
+      hasError = true;
+    } else if (!validateEmail(email)) {
+      setEmailError('Format d\'email invalide');
+      hasError = true;
     }
 
-    const success = login(email, password);
-    if (success) {
-      navigate('/dashboard');
-    } else {
-      setError('Identifiants incorrects');
+    if (!password) {
+      setPasswordError('Le mot de passe est requis');
+      hasError = true;
+    } else if (password.length < 6) {
+      setPasswordError('Le mot de passe doit contenir au moins 6 caractères');
+      hasError = true;
+    }
+
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      const success = await login(email, password);
+      if (success) {
+        navigate('/dashboard');
+      } else {
+        setError('Email ou mot de passe incorrect. Veuillez réessayer.');
+      }
+    } catch (err) {
+      setError('Une erreur est survenue. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -40,9 +96,11 @@ const Login = () => {
               type="email"
               id="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
               placeholder="votre@email.com"
+              className={emailError ? 'input-error' : ''}
             />
+            {emailError && <span className="field-error">{emailError}</span>}
           </div>
 
           <div className="form-group">
@@ -51,15 +109,17 @@ const Login = () => {
               type="password"
               id="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               placeholder="••••••••"
+              className={passwordError ? 'input-error' : ''}
             />
+            {passwordError && <span className="field-error">{passwordError}</span>}
           </div>
 
           {error && <div className="error-message">{error}</div>}
 
-          <button type="submit" className="login-button">
-            Se connecter
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? 'Connexion en cours...' : 'Se connecter'}
           </button>
         </form>
 

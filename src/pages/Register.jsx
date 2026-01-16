@@ -9,37 +9,111 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { register } = useAuth();
 
-  const handleSubmit = (e) => {
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleEmailChange = (e) => {
+    const value = e.target.value;
+    setEmail(value);
+    setEmailError('');
+    setError('');
+
+    if (value && !validateEmail(value)) {
+      setEmailError('Format d\'email invalide');
+    }
+  };
+
+  const handlePasswordChange = (e) => {
+    const value = e.target.value;
+    setPassword(value);
+    setPasswordError('');
+    setError('');
+
+    if (value && value.length < 6) {
+      setPasswordError('Le mot de passe doit contenir au moins 6 caractères');
+    }
+
+    // Re-vérifier la confirmation si elle existe
+    if (confirmPassword && value !== confirmPassword) {
+      setConfirmPasswordError('Les mots de passe ne correspondent pas');
+    } else {
+      setConfirmPasswordError('');
+    }
+  };
+
+  const handleConfirmPasswordChange = (e) => {
+    const value = e.target.value;
+    setConfirmPassword(value);
+    setConfirmPasswordError('');
+    setError('');
+
+    if (value && password && value !== password) {
+      setConfirmPasswordError('Les mots de passe ne correspondent pas');
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setEmailError('');
+    setPasswordError('');
+    setConfirmPasswordError('');
 
-    if (!email || !password || !confirmPassword) {
-      setError('Veuillez remplir tous les champs');
-      return;
+    // Validation
+    let hasError = false;
+
+    if (!email) {
+      setEmailError('L\'email est requis');
+      hasError = true;
+    } else if (!validateEmail(email)) {
+      setEmailError('Format d\'email invalide');
+      hasError = true;
     }
 
-    if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas');
-      return;
+    if (!password) {
+      setPasswordError('Le mot de passe est requis');
+      hasError = true;
+    } else if (password.length < 6) {
+      setPasswordError('Le mot de passe doit contenir au moins 6 caractères');
+      hasError = true;
     }
 
-    if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères');
-      return;
+    if (!confirmPassword) {
+      setConfirmPasswordError('Veuillez confirmer le mot de passe');
+      hasError = true;
+    } else if (password !== confirmPassword) {
+      setConfirmPasswordError('Les mots de passe ne correspondent pas');
+      hasError = true;
     }
 
-    const result = register(email, password);
-    if (result.success) {
-      setSuccess('Compte créé avec succès! Redirection vers la connexion...');
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
-    } else {
-      setError(result.message);
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      const result = await register(email, password);
+      if (result.success) {
+        setSuccess('Compte créé avec succès! Redirection...');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      } else {
+        setError(result.message || 'Une erreur est survenue lors de la création du compte');
+      }
+    } catch (err) {
+      setError('Une erreur est survenue. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -56,9 +130,11 @@ const Register = () => {
               type="email"
               id="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
               placeholder="votre@email.com"
+              className={emailError ? 'input-error' : ''}
             />
+            {emailError && <span className="field-error">{emailError}</span>}
           </div>
 
           <div className="form-group">
@@ -67,9 +143,11 @@ const Register = () => {
               type="password"
               id="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              onChange={handlePasswordChange}
+              placeholder="Minimum 6 caractères"
+              className={passwordError ? 'input-error' : ''}
             />
+            {passwordError && <span className="field-error">{passwordError}</span>}
           </div>
 
           <div className="form-group">
@@ -78,16 +156,18 @@ const Register = () => {
               type="password"
               id="confirmPassword"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={handleConfirmPasswordChange}
               placeholder="••••••••"
+              className={confirmPasswordError ? 'input-error' : ''}
             />
+            {confirmPasswordError && <span className="field-error">{confirmPasswordError}</span>}
           </div>
 
           {error && <div className="error-message">{error}</div>}
           {success && <div className="success-message">{success}</div>}
 
-          <button type="submit" className="register-button">
-            Créer mon compte
+          <button type="submit" className="register-button" disabled={loading}>
+            {loading ? 'Création en cours...' : 'Créer mon compte'}
           </button>
         </form>
 
