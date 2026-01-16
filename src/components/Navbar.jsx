@@ -27,6 +27,12 @@ const Navbar = () => {
               Tableau de bord
             </Link>
             <Link
+              to="/projects"
+              className={`nav-link ${isActive('/projects') ? 'active' : ''}`}
+            >
+              Projets
+            </Link>
+            <Link
               to="/redaction"
               className={`nav-link ${isActive('/redaction') ? 'active' : ''}`}
             >

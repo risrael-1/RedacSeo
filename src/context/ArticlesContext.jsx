@@ -46,6 +46,7 @@ export const ArticlesProvider = ({ children }) => {
     try {
       // Transform data to match API schema
       const apiData = {
+        project_id: articleData.projectId || null,
         article_name: articleData.articleName,
         title: articleData.title,
         meta_description: articleData.metaDescription,
@@ -53,6 +54,7 @@ export const ArticlesProvider = ({ children }) => {
         secondary_keywords: articleData.secondaryKeywords,
         content: articleData.content,
         word_count: articleData.wordCount,
+        seo_score: articleData.seoScore || 0,
         status: articleData.status,
       };
 
@@ -92,6 +94,7 @@ export const ArticlesProvider = ({ children }) => {
       // Transform API data to match frontend schema
       setCurrentArticle({
         ...article,
+        projectId: article.project_id,
         articleName: article.article_name,
         metaDescription: article.meta_description,
         secondaryKeywords: article.secondary_keywords || [],
@@ -116,6 +119,7 @@ export const ArticlesProvider = ({ children }) => {
 
   const createNewArticle = () => {
     setCurrentArticle({
+      projectId: null,
       title: '',
       metaDescription: '',
       keyword: '',
@@ -125,6 +129,28 @@ export const ArticlesProvider = ({ children }) => {
       articleName: '',
       wordCount: 0,
     });
+  };
+
+  const updateArticleStatus = async (articleId, newStatus) => {
+    try {
+      const article = articles.find(a => a.id === articleId);
+      if (!article) return;
+
+      const response = await articlesAPI.update(articleId, {
+        ...article,
+        status: newStatus,
+      });
+
+      setArticles(prev =>
+        prev.map(a => (a.id === articleId ? response.article : a))
+      );
+
+      if (currentArticle?.id === articleId) {
+        setCurrentArticle(response.article);
+      }
+    } catch (error) {
+      console.error('Failed to update article status:', error);
+    }
   };
 
   return (
@@ -137,6 +163,7 @@ export const ArticlesProvider = ({ children }) => {
         deleteArticle,
         createNewArticle,
         setCurrentArticle,
+        updateArticleStatus,
         loading,
       }}
     >

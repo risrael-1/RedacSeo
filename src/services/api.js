@@ -114,3 +114,34 @@ export const rulesAPI = {
     });
   },
 };
+
+// Projects API
+export const projectsAPI = {
+  getAll: async () => {
+    return fetchWithAuth('/projects');
+  },
+
+  getOne: async (id) => {
+    return fetchWithAuth(`/projects/${id}`);
+  },
+
+  create: async (projectData) => {
+    return fetchWithAuth('/projects', {
+      method: 'POST',
+      body: JSON.stringify(projectData),
+    });
+  },
+
+  update: async (id, projectData) => {
+    return fetchWithAuth(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(projectData),
+    });
+  },
+
+  delete: async (id) => {
+    return fetchWithAuth(`/projects/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};

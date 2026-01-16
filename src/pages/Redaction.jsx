@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useRules } from '../context/RulesContext';
 import { useArticles } from '../context/ArticlesContext';
+import { useProjects } from '../context/ProjectsContext';
+import { calculateSEOScore } from '../utils/seoScoreCalculator';
 import Navbar from '../components/Navbar';
 import './Redaction.css';
 
@@ -15,10 +17,13 @@ const Redaction = () => {
   const [titleSuggestions, setTitleSuggestions] = useState([]);
   const [metaSuggestions, setMetaSuggestions] = useState([]);
   const [articleName, setArticleName] = useState('');
+  const [projectId, setProjectId] = useState(null);
   const [showSavePopup, setShowSavePopup] = useState(false);
   const [showClearPopup, setShowClearPopup] = useState(false);
+  const [articleNameError, setArticleNameError] = useState('');
   const { checkRules } = useRules();
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
+  const { projects } = useProjects();
 
   // Charger l'article en cours
   useEffect(() => {
@@ -29,6 +34,7 @@ const Redaction = () => {
       setSecondaryKeywords(currentArticle.secondaryKeywords || []);
       setContent(currentArticle.content || '');
       setArticleName(currentArticle.articleName || '');
+      setProjectId(currentArticle.projectId || null);
     }
   }, [currentArticle]);
 
@@ -41,18 +47,32 @@ const Redaction = () => {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [title, metaDescription, keyword, secondaryKeywords, content, articleName]);
+  }, [title, metaDescription, keyword, secondaryKeywords, content, articleName, projectId]);
 
   const handleSave = (showAlert = true) => {
+    // Validation du nom de l'article
+    if (!articleName || articleName.trim() === '') {
+      setArticleNameError('Le nom de l\'article est obligatoire');
+      if (showAlert) {
+        alert('⚠️ Le nom de l\'article est obligatoire pour sauvegarder');
+      }
+      return;
+    }
+
+    setArticleNameError('');
     const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const seoScore = calculateSEOScore(content, title, metaDescription, keyword);
+
     const article = saveArticle({
-      articleName: articleName || `Article ${new Date().toLocaleString()}`,
+      projectId: projectId || null,
+      articleName: articleName.trim(),
       title,
       metaDescription,
       keyword,
       secondaryKeywords,
       content,
       wordCount,
+      seoScore,
       status: 'En cours',
     });
 
@@ -268,15 +288,46 @@ const Redaction = () => {
         <div className="redaction-grid">
           <div className="editor-section">
             <div className="form-group">
-              <label htmlFor="articleName">Nom de l'article</label>
+              <label htmlFor="articleName">
+                Nom de l'article <span className="required-field">*</span>
+              </label>
               <input
                 type="text"
                 id="articleName"
                 value={articleName}
-                onChange={(e) => setArticleName(e.target.value)}
-                placeholder="Donnez un nom à votre article"
+                onChange={(e) => {
+                  setArticleName(e.target.value);
+                  if (e.target.value.trim()) {
+                    setArticleNameError('');
+                  }
+                }}
+                placeholder="Donnez un nom à votre article (obligatoire)"
+                className={articleNameError ? 'input-error' : ''}
+                required
               />
+              {articleNameError && (
+                <span className="field-error">{articleNameError}</span>
+              )}
             </div>
+
+            {projects.length > 0 && (
+              <div className="form-group">
+                <label htmlFor="projectSelect">Projet associé</label>
+                <select
+                  id="projectSelect"
+                  value={projectId || ''}
+                  onChange={(e) => setProjectId(e.target.value || null)}
+                  className="project-select-field"
+                >
+                  <option value="">Aucun projet</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="keywords-section">
               <div className="keywords-grid">
@@ -434,10 +485,12 @@ const Redaction = () => {
                       className={`article-item ${currentArticle?.id === article.id ? 'active' : ''}`}
                     >
                       <div onClick={() => loadArticle(article.id)} className="article-info">
-                        <h4>{article.articleName || 'Sans nom'}</h4>
-                        <p>{article.wordCount || 0} mots</p>
+                        <h4>{article.article_name || article.articleName || 'Sans nom'}</h4>
+                        <p>{article.word_count || article.wordCount || 0} mots</p>
                         <span className="article-date">
-                          {new Date(article.lastModified).toLocaleDateString()}
+                          {article.updated_at || article.lastModified
+                            ? new Date(article.updated_at || article.lastModified).toLocaleDateString()
+                            : 'Date inconnue'}
                         </span>
                       </div>
                       <button

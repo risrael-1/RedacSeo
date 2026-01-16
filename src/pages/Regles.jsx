@@ -6,6 +6,7 @@ import './Regles.css';
 const Regles = () => {
   const { rules, toggleRule, deleteRule, addRule, updateRule } = useRules();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showSeoCriteria, setShowSeoCriteria] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -87,6 +88,133 @@ const Regles = () => {
           >
             {showAddForm ? 'Annuler' : '+ Ajouter une règle'}
           </button>
+        </div>
+
+        {/* SEO Score Criteria Info Section */}
+        <div className="seo-score-info">
+          <div className="seo-score-header" onClick={() => setShowSeoCriteria(!showSeoCriteria)}>
+            <div className="seo-score-header-content">
+              <h3>📊 Critères de Score SEO Automatique (100 points)</h3>
+              <p className="info-subtitle-inline">
+                Chaque article reçoit un score SEO calculé automatiquement lors de la sauvegarde
+              </p>
+            </div>
+            <button className="toggle-criteria-btn">
+              {showSeoCriteria ? '▲' : '▼'}
+            </button>
+          </div>
+
+          {showSeoCriteria && (
+            <>
+              <div className="score-criteria-grid">
+            <div className="score-criterion-card">
+              <div className="criterion-icon">📝</div>
+              <h4>Longueur du contenu</h4>
+              <span className="criterion-points">15 pts</span>
+              <ul className="criterion-details">
+                <li>≥800 mots = 15 points</li>
+                <li>≥500 mots = 13 points</li>
+                <li>≥300 mots = 11 points</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">🎯</div>
+              <h4>Mot-clé dans le titre</h4>
+              <span className="criterion-points">12 pts</span>
+              <ul className="criterion-details">
+                <li>Au début = 12 points</li>
+                <li>Dans les 10 premiers car. = 10 pts</li>
+                <li>Ailleurs = 8 points</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">💎</div>
+              <h4>Densité du mot-clé</h4>
+              <span className="criterion-points">12 pts</span>
+              <ul className="criterion-details">
+                <li>1-2.5% = 12 points</li>
+                <li>0.5-1% = 10 points</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">🏷️</div>
+              <h4>Structure H1</h4>
+              <span className="criterion-points">13 pts</span>
+              <ul className="criterion-details">
+                <li>1 seul H1 = 10 points</li>
+                <li>H1 avec mot-clé = +3 bonus</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">📋</div>
+              <h4>Structure H2/H3</h4>
+              <span className="criterion-points">10 pts</span>
+              <ul className="criterion-details">
+                <li>≥3 H2 = 6 points</li>
+                <li>≥2 H3 = 4 points</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">📄</div>
+              <h4>Meta description</h4>
+              <span className="criterion-points">16 pts</span>
+              <ul className="criterion-details">
+                <li>120-160 caractères = 8 pts</li>
+                <li>Contient le mot-clé = 8 pts</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">📌</div>
+              <h4>Titre SEO</h4>
+              <span className="criterion-points">5 pts</span>
+              <ul className="criterion-details">
+                <li>30-60 caractères = 5 points</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">⚡</div>
+              <h4>Mot-clé au début</h4>
+              <span className="criterion-points">5 pts</span>
+              <ul className="criterion-details">
+                <li>Dans les 100 premiers mots</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">💪</div>
+              <h4>Contenu en gras</h4>
+              <span className="criterion-points">5 pts</span>
+              <ul className="criterion-details">
+                <li>≥5 balises strong = 5 pts</li>
+                <li>≥3 balises strong = 4 pts</li>
+              </ul>
+            </div>
+
+            <div className="score-criterion-card">
+              <div className="criterion-icon">✅</div>
+              <h4>Bonus</h4>
+              <span className="criterion-points">7 pts</span>
+              <ul className="criterion-details">
+                <li>Titre présent = 5 points</li>
+                <li>Meta présente = 2 points</li>
+              </ul>
+            </div>
+          </div>
+
+              <div className="score-info-footer">
+                <div className="score-tip">
+                  <strong>💡 Conseil:</strong> Ces critères sont automatiques. Les règles personnalisées ci-dessous sont des vérifications supplémentaires pour vous aider pendant la rédaction.
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {showAddForm && (

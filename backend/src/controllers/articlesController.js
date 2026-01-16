@@ -52,6 +52,7 @@ export const createArticle = async (req, res) => {
   try {
     const userId = req.user.userId;
     const {
+      project_id,
       article_name,
       title,
       meta_description,
@@ -59,14 +60,16 @@ export const createArticle = async (req, res) => {
       secondary_keywords,
       content,
       word_count,
+      seo_score,
       status
     } = req.body;
 
-    const { data: article, error } = await supabase
+    const { data: article, error} = await supabase
       .from('articles')
       .insert([
         {
           user_id: userId,
+          project_id: project_id || null,
           article_name: article_name || 'Nouvel article',
           title: title || '',
           meta_description: meta_description || '',
@@ -74,6 +77,7 @@ export const createArticle = async (req, res) => {
           secondary_keywords: secondary_keywords || [],
           content: content || '',
           word_count: word_count || 0,
+          seo_score: seo_score || 0,
           status: status || 'Brouillon'
         }
       ])
@@ -101,6 +105,7 @@ export const updateArticle = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.userId;
     const {
+      project_id,
       article_name,
       title,
       meta_description,
@@ -108,6 +113,7 @@ export const updateArticle = async (req, res) => {
       secondary_keywords,
       content,
       word_count,
+      seo_score,
       status
     } = req.body;
 
@@ -126,6 +132,7 @@ export const updateArticle = async (req, res) => {
     const { data: article, error } = await supabase
       .from('articles')
       .update({
+        project_id,
         article_name,
         title,
         meta_description,
@@ -133,6 +140,7 @@ export const updateArticle = async (req, res) => {
         secondary_keywords,
         content,
         word_count,
+        seo_score,
         status,
         updated_at: new Date()
       })
