@@ -3,7 +3,12 @@
     "allow": [
       "Bash(dir:*)",
       "Bash(npm install:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Application complète de rédaction SEO\n\n- Système d''authentification avec login, register et mot de passe oublié\n- Gestion des articles par utilisateur avec localStorage\n- Page de rédaction SEO avec éditeur de contenu\n- Génération automatique de suggestions de titre et meta description\n- Gestion des mots-clés principaux et secondaires\n- Application manuelle du formatage en gras sur les mots-clés\n- Priorité aux expressions longues \\(ex: \"hôtel en Bretagne bord de mer\"\\)\n- Page de configuration des règles SEO\n- Auto-sauvegarde toutes les 30 secondes\n- Vérification des règles SEO configurables\n- Navigation avec Navbar et routes protégées\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: Mise à jour du README avec documentation complète\n\n- Documentation détaillée des fonctionnalités\n- Guide d''installation et d''utilisation\n- Structure du projet\n- Technologies utilisées\n- Scripts disponibles\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)"
     ]
   }
 }

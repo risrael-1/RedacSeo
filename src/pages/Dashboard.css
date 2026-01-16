@@ -113,7 +113,8 @@
   font-weight: 600;
 }
 
-.status-en {
+.status-en,
+.status-en-cours {
   background: #fff3cd;
   color: #856404;
 }
@@ -126,6 +127,13 @@
 .status-brouillon {
   background: #d1ecf1;
   color: #0c5460;
+}
+
+.no-articles {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+  font-size: 1rem;
 }
 
 .article-details {

@@ -15,6 +15,7 @@ const Redaction = () => {
   const [titleSuggestions, setTitleSuggestions] = useState([]);
   const [metaSuggestions, setMetaSuggestions] = useState([]);
   const [articleName, setArticleName] = useState('');
+  const [showSavePopup, setShowSavePopup] = useState(false);
   const { checkRules } = useRules();
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
 
@@ -55,7 +56,23 @@ const Redaction = () => {
     });
 
     if (showAlert && article) {
-      alert('Article sauvegardé avec succès!');
+      setShowSavePopup(true);
+      setTimeout(() => {
+        setShowSavePopup(false);
+      }, 3000);
+    }
+  };
+
+  const handleClearContent = () => {
+    if (window.confirm('Êtes-vous sûr de vouloir effacer tout le contenu de l\'article ? Cette action est irréversible.')) {
+      setContent('');
+      setTitle('');
+      setMetaDescription('');
+      setKeyword('');
+      setSecondaryKeywords([]);
+      setTitleSuggestions([]);
+      setMetaSuggestions([]);
+      setResults([]);
     }
   };
 
@@ -210,6 +227,9 @@ const Redaction = () => {
             <button onClick={() => handleSave(true)} className="save-button">
               Sauvegarder
             </button>
+            <button onClick={handleClearContent} className="clear-button">
+              Effacer
+            </button>
             <button onClick={generateSuggestions} className="suggest-button">
               Générer des suggestions
             </button>
@@ -218,6 +238,16 @@ const Redaction = () => {
             </button>
           </div>
         </div>
+
+        {showSavePopup && (
+          <div className="save-popup">
+            <div className="save-popup-content">
+              <div className="save-popup-icon">✓</div>
+              <h3>Article sauvegardé !</h3>
+              <p>Vos modifications ont été enregistrées avec succès</p>
+            </div>
+          </div>
+        )}
 
         <div className="redaction-grid">
           <div className="editor-section">
