@@ -131,6 +131,20 @@
   border-left: 4px solid #667eea;
 }
 
+.content-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.content-actions .save-button,
+.content-actions .clear-button {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  font-size: 1rem;
+}
+
 .form-section {
   display: flex;
   flex-direction: column;

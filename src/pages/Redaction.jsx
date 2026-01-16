@@ -224,12 +224,6 @@ const Redaction = () => {
         <div className="redaction-header">
           <h2>Rédaction SEO</h2>
           <div className="header-buttons">
-            <button onClick={() => handleSave(true)} className="save-button">
-              Sauvegarder
-            </button>
-            <button onClick={handleClearContent} className="clear-button">
-              Effacer
-            </button>
             <button onClick={generateSuggestions} className="suggest-button">
               Générer des suggestions
             </button>
@@ -336,6 +330,15 @@ const Redaction = () => {
                 rows="20"
               />
               <span className="char-count">{getWordCount()} mots</span>
+            </div>
+
+            <div className="content-actions">
+              <button onClick={() => handleSave(true)} className="save-button">
+                Sauvegarder
+              </button>
+              <button onClick={handleClearContent} className="clear-button">
+                Effacer le contenu
+              </button>
             </div>
 
             {titleSuggestions.length > 0 && (
