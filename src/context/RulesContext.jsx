@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { rulesAPI } from '../services/api';
 
 const RulesContext = createContext();
 
@@ -55,36 +57,121 @@ const defaultRules = [
 ];
 
 export const RulesProvider = ({ children }) => {
-  const [rules, setRules] = useState(() => {
-    const savedRules = localStorage.getItem('seoRules');
-    return savedRules ? JSON.parse(savedRules) : defaultRules;
-  });
+  const { user, isAuthenticated } = useAuth();
+  const [rules, setRules] = useState(defaultRules);
+  const [loading, setLoading] = useState(false);
 
+  // Load rules from API when user is authenticated
   useEffect(() => {
-    localStorage.setItem('seoRules', JSON.stringify(rules));
-  }, [rules]);
+    if (isAuthenticated && user) {
+      loadRulesFromAPI();
+    } else {
+      setRules(defaultRules);
+    }
+  }, [user, isAuthenticated]);
 
-  const addRule = (rule) => {
+  const loadRulesFromAPI = async () => {
+    try {
+      setLoading(true);
+      const response = await rulesAPI.getAll();
+
+      // If user has custom rules, use them; otherwise use defaults
+      if (response.rules && response.rules.length > 0) {
+        // Map API rules to frontend format
+        const mappedRules = response.rules.map(rule => ({
+          id: rule.rule_id,
+          name: rule.rule_name,
+          enabled: rule.enabled,
+          // Map the specific rule properties based on rule_id
+          ...(rule.rule_id === 'title' && { maxLength: rule.max_value }),
+          ...(rule.rule_id === 'metaDescription' && {
+            minLength: rule.min_value,
+            maxLength: rule.max_value
+          }),
+          ...(rule.rule_id === 'keywordBold' && { minOccurrences: rule.min_value }),
+          ...(rule.rule_id === 'wordCount' && { minWords: rule.min_value }),
+          ...(rule.rule_id === 'h1Count' && { exactCount: rule.max_value }),
+        }));
+
+        // Merge with default rules to ensure all rules exist
+        const mergedRules = defaultRules.map(defaultRule => {
+          const customRule = mappedRules.find(r => r.id === defaultRule.type);
+          return customRule ? { ...defaultRule, ...customRule } : defaultRule;
+        });
+
+        setRules(mergedRules);
+      } else {
+        setRules(defaultRules);
+      }
+    } catch (error) {
+      console.error('Failed to load rules:', error);
+      setRules(defaultRules);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addRule = async (rule) => {
     const newRule = {
       ...rule,
       id: Date.now(),
       enabled: true
     };
     setRules([...rules, newRule]);
+
+    // Save to API if authenticated
+    if (isAuthenticated) {
+      await saveRulesToAPI([...rules, newRule]);
+    }
   };
 
-  const updateRule = (id, updatedRule) => {
-    setRules(rules.map(rule => rule.id === id ? { ...rule, ...updatedRule } : rule));
+  const updateRule = async (id, updatedRule) => {
+    const updatedRules = rules.map(rule => rule.id === id ? { ...rule, ...updatedRule } : rule);
+    setRules(updatedRules);
+
+    // Save to API if authenticated
+    if (isAuthenticated) {
+      await saveRulesToAPI(updatedRules);
+    }
   };
 
-  const deleteRule = (id) => {
-    setRules(rules.filter(rule => rule.id !== id));
+  const deleteRule = async (id) => {
+    const filteredRules = rules.filter(rule => rule.id !== id);
+    setRules(filteredRules);
+
+    // Save to API if authenticated
+    if (isAuthenticated) {
+      await saveRulesToAPI(filteredRules);
+    }
   };
 
-  const toggleRule = (id) => {
-    setRules(rules.map(rule =>
+  const toggleRule = async (id) => {
+    const updatedRules = rules.map(rule =>
       rule.id === id ? { ...rule, enabled: !rule.enabled } : rule
-    ));
+    );
+    setRules(updatedRules);
+
+    // Save to API if authenticated
+    if (isAuthenticated) {
+      await saveRulesToAPI(updatedRules);
+    }
+  };
+
+  const saveRulesToAPI = async (rulesToSave) => {
+    try {
+      // Transform rules to API format
+      const apiRules = rulesToSave.map(rule => ({
+        rule_id: rule.type,
+        rule_name: rule.name,
+        enabled: rule.enabled,
+        min_value: rule.minLength || rule.minOccurrences || rule.minWords || null,
+        max_value: rule.maxLength || rule.exactCount || null,
+      }));
+
+      await rulesAPI.batchUpdate(apiRules);
+    } catch (error) {
+      console.error('Failed to save rules:', error);
+    }
   };
 
   const checkRules = (content, title, metaDescription, keyword) => {
@@ -182,7 +269,8 @@ export const RulesProvider = ({ children }) => {
       updateRule,
       deleteRule,
       toggleRule,
-      checkRules
+      checkRules,
+      loading
     }}>
       {children}
     </RulesContext.Provider>

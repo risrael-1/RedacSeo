@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -13,45 +14,88 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const register = (email, password) => {
-    // Récupérer les utilisateurs existants
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-
-    // Vérifier si l'utilisateur existe déjà
-    if (users.find(u => u.email === email)) {
-      return { success: false, message: 'Un compte avec cet email existe déjà' };
+  // Check if user is already logged in on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData.user);
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Failed to parse stored user:', error);
+        localStorage.removeItem('user');
+      }
     }
+    setLoading(false);
+  }, []);
 
-    // Ajouter le nouvel utilisateur
-    users.push({ email, password });
-    localStorage.setItem('users', JSON.stringify(users));
+  const register = async (email, password) => {
+    try {
+      const response = await authAPI.register(email, password);
 
-    return { success: true, message: 'Compte créé avec succès' };
+      // Store token and user info
+      localStorage.setItem('user', JSON.stringify({
+        token: response.token,
+        user: response.user
+      }));
+
+      setUser(response.user);
+      setIsAuthenticated(true);
+
+      return { success: true, message: response.message };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
   };
 
-  const login = (email, password) => {
-    // Récupérer les utilisateurs du localStorage
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const login = async (email, password) => {
+    try {
+      const response = await authAPI.login(email, password);
 
-    // Vérifier les identifiants
-    const user = users.find(u => u.email === email && u.password === password);
+      // Store token and user info
+      localStorage.setItem('user', JSON.stringify({
+        token: response.token,
+        user: response.user
+      }));
 
-    if (user) {
-      setUser({ email: user.email });
+      setUser(response.user);
       setIsAuthenticated(true);
+
       return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
+    localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
   };
 
+  const resetPassword = async (email, newPassword) => {
+    try {
+      const response = await authAPI.resetPassword(email, newPassword);
+      return { success: true, message: response.message };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, register }}>
+    <AuthContext.Provider value={{
+      isAuthenticated,
+      user,
+      loading,
+      login,
+      logout,
+      register,
+      resetPassword
+    }}>
       {children}
     </AuthContext.Provider>
   );

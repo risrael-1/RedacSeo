@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { articlesAPI } from '../services/api';
 
 const ArticlesContext = createContext();
 
@@ -12,102 +13,131 @@ export const useArticles = () => {
 };
 
 export const ArticlesProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [articles, setArticles] = useState([]);
   const [currentArticle, setCurrentArticle] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Charger les articles de l'utilisateur depuis le localStorage
+  // Charger les articles depuis l'API
   useEffect(() => {
-    if (user?.email) {
-      const savedArticles = localStorage.getItem(`articles_${user.email}`);
-      if (savedArticles) {
-        const parsed = JSON.parse(savedArticles);
-        setArticles(parsed);
+    if (isAuthenticated && user) {
+      loadArticlesFromAPI();
+    } else {
+      setArticles([]);
+      setCurrentArticle(null);
+    }
+  }, [user, isAuthenticated]);
 
-        // Charger le dernier article en cours si il existe
-        const lastArticle = parsed.find(a => a.status === 'En cours');
-        if (lastArticle) {
-          setCurrentArticle(lastArticle);
+  const loadArticlesFromAPI = async () => {
+    try {
+      setLoading(true);
+      const response = await articlesAPI.getAll();
+      setArticles(response.articles || []);
+    } catch (error) {
+      console.error('Failed to load articles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveArticle = async (articleData) => {
+    if (!user) return null;
+
+    try {
+      // Transform data to match API schema
+      const apiData = {
+        article_name: articleData.articleName,
+        title: articleData.title,
+        meta_description: articleData.metaDescription,
+        keyword: articleData.keyword,
+        secondary_keywords: articleData.secondaryKeywords,
+        content: articleData.content,
+        word_count: articleData.wordCount,
+        status: articleData.status,
+      };
+
+      let response;
+      if (currentArticle?.id) {
+        // Update existing article
+        response = await articlesAPI.update(currentArticle.id, apiData);
+      } else {
+        // Create new article
+        response = await articlesAPI.create(apiData);
+      }
+
+      const savedArticle = response.article;
+
+      // Update local state
+      setArticles(prev => {
+        const existing = prev.findIndex(a => a.id === savedArticle.id);
+        if (existing >= 0) {
+          const updated = [...prev];
+          updated[existing] = savedArticle;
+          return updated;
         }
-      }
+        return [savedArticle, ...prev];
+      });
+
+      setCurrentArticle(savedArticle);
+      return savedArticle;
+    } catch (error) {
+      console.error('Failed to save article:', error);
+      return null;
     }
-  }, [user]);
-
-  // Sauvegarder les articles dans le localStorage
-  useEffect(() => {
-    if (user?.email && articles.length > 0) {
-      localStorage.setItem(`articles_${user.email}`, JSON.stringify(articles));
-    }
-  }, [articles, user]);
-
-  const saveArticle = (articleData) => {
-    if (!user?.email) return null;
-
-    const article = {
-      id: currentArticle?.id || Date.now(),
-      ...articleData,
-      userEmail: user.email,
-      lastModified: new Date().toISOString(),
-    };
-
-    setArticles(prev => {
-      const existing = prev.findIndex(a => a.id === article.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = article;
-        return updated;
-      }
-      return [...prev, article];
-    });
-
-    setCurrentArticle(article);
-    return article;
   };
 
   const loadArticle = (articleId) => {
     const article = articles.find(a => a.id === articleId);
     if (article) {
-      setCurrentArticle(article);
+      // Transform API data to match frontend schema
+      setCurrentArticle({
+        ...article,
+        articleName: article.article_name,
+        metaDescription: article.meta_description,
+        secondaryKeywords: article.secondary_keywords || [],
+        wordCount: article.word_count,
+        lastModified: article.updated_at,
+      });
     }
     return article;
   };
 
-  const deleteArticle = (articleId) => {
-    setArticles(prev => prev.filter(a => a.id !== articleId));
-    if (currentArticle?.id === articleId) {
-      setCurrentArticle(null);
+  const deleteArticle = async (articleId) => {
+    try {
+      await articlesAPI.delete(articleId);
+      setArticles(prev => prev.filter(a => a.id !== articleId));
+      if (currentArticle?.id === articleId) {
+        setCurrentArticle(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete article:', error);
     }
   };
 
   const createNewArticle = () => {
     setCurrentArticle({
-      id: Date.now(),
       title: '',
       metaDescription: '',
       keyword: '',
       secondaryKeywords: [],
       content: '',
       status: 'Brouillon',
-      userEmail: user?.email,
-      createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString(),
+      articleName: '',
+      wordCount: 0,
     });
-  };
-
-  const getUserArticles = () => {
-    return articles.filter(a => a.userEmail === user?.email);
   };
 
   return (
     <ArticlesContext.Provider
       value={{
-        articles: getUserArticles(),
+        articles,
         currentArticle,
         saveArticle,
         loadArticle,
         deleteArticle,
         createNewArticle,
         setCurrentArticle,
+        loading,
       }}
     >
       {children}
