@@ -176,3 +176,132 @@ export const getSEOScoreLevel = (score) => {
     return { level: 'Très faible', color: '#f44336' };
   }
 };
+
+/**
+ * Retourne la liste des critères SEO non respectés pour un article
+ * @param {string} content - Le contenu de l'article
+ * @param {string} title - Le titre de l'article
+ * @param {string} metaDescription - La meta description
+ * @param {string} keyword - Le mot-clé principal
+ * @returns {Array} Liste des critères non respectés avec leur description
+ */
+export const getUnmetSEOCriteria = (content, title, metaDescription, keyword) => {
+  const unmetCriteria = [];
+
+  // Si pas de contenu
+  if (!content || !content.trim()) {
+    return [{ id: 'no-content', label: 'Aucun contenu', icon: '📝' }];
+  }
+
+  const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+
+  // 1. Longueur du contenu
+  if (wordCount < 300) {
+    unmetCriteria.push({
+      id: 'content-length',
+      label: `Contenu trop court (${wordCount}/${300} mots min)`,
+      icon: '📝'
+    });
+  }
+
+  // 2. Mot-clé dans le titre
+  if (!keyword || !title || !title.toLowerCase().includes(keyword.toLowerCase())) {
+    unmetCriteria.push({
+      id: 'keyword-title',
+      label: 'Mot-clé absent du titre',
+      icon: '🎯'
+    });
+  }
+
+  // 3. Mot-clé dans la meta description
+  if (!keyword || !metaDescription || !metaDescription.toLowerCase().includes(keyword.toLowerCase())) {
+    unmetCriteria.push({
+      id: 'keyword-meta',
+      label: 'Mot-clé absent de la meta',
+      icon: '📄'
+    });
+  }
+
+  // 4. Longueur de la meta description
+  if (!metaDescription || metaDescription.length < 120 || metaDescription.length > 160) {
+    const len = metaDescription ? metaDescription.length : 0;
+    unmetCriteria.push({
+      id: 'meta-length',
+      label: `Meta description ${len < 120 ? 'trop courte' : len > 160 ? 'trop longue' : 'manquante'} (${len}/120-160)`,
+      icon: '📄'
+    });
+  }
+
+  // 5. Densité du mot-clé
+  if (keyword && content && wordCount > 0) {
+    const contentLower = content.toLowerCase();
+    const keywordLower = keyword.toLowerCase();
+    const keywordRegex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    const matches = contentLower.match(keywordRegex);
+    const keywordCount = matches ? matches.length : 0;
+    const density = (keywordCount / wordCount) * 100;
+
+    if (density < 1 || density > 2.5) {
+      unmetCriteria.push({
+        id: 'keyword-density',
+        label: `Densité mot-clé: ${density.toFixed(1)}% (idéal: 1-2.5%)`,
+        icon: '💎'
+      });
+    }
+  }
+
+  // 6. Structure H1
+  const h1Count = (content.match(/<h1[^>]*>/gi) || []).length;
+  if (h1Count !== 1) {
+    unmetCriteria.push({
+      id: 'h1-structure',
+      label: h1Count === 0 ? 'Aucun H1 trouvé' : `${h1Count} H1 (1 seul recommandé)`,
+      icon: '🏷️'
+    });
+  }
+
+  // 7. Structure H2/H3
+  const h2Count = (content.match(/<h2[^>]*>/gi) || []).length;
+  const h3Count = (content.match(/<h3[^>]*>/gi) || []).length;
+  if (h2Count < 2) {
+    unmetCriteria.push({
+      id: 'h2-structure',
+      label: `Seulement ${h2Count} H2 (min 2 recommandé)`,
+      icon: '📋'
+    });
+  }
+
+  // 8. Contenu en gras
+  const strongCount = (content.match(/<strong[^>]*>/gi) || []).length;
+  if (strongCount < 3) {
+    unmetCriteria.push({
+      id: 'strong-tags',
+      label: `Peu de mise en gras (${strongCount} balises)`,
+      icon: '💪'
+    });
+  }
+
+  // 9. Longueur du titre
+  if (!title || title.length < 30 || title.length > 60) {
+    const len = title ? title.length : 0;
+    unmetCriteria.push({
+      id: 'title-length',
+      label: `Titre ${len < 30 ? 'trop court' : len > 60 ? 'trop long' : 'manquant'} (${len}/30-60)`,
+      icon: '📌'
+    });
+  }
+
+  // 10. Mot-clé dans les premiers 100 mots
+  if (keyword && content) {
+    const first100Words = content.trim().split(/\s+/).slice(0, 100).join(' ');
+    if (!first100Words.toLowerCase().includes(keyword.toLowerCase())) {
+      unmetCriteria.push({
+        id: 'keyword-intro',
+        label: 'Mot-clé absent du début',
+        icon: '⚡'
+      });
+    }
+  }
+
+  return unmetCriteria;
+};

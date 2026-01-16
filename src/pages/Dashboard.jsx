@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
-import { getSEOScoreLevel } from '../utils/seoScoreCalculator';
+import { getSEOScoreLevel, getUnmetSEOCriteria } from '../utils/seoScoreCalculator';
 import Navbar from '../components/Navbar';
 import './Dashboard.css';
 
@@ -12,6 +12,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [selectedProjectId, setSelectedProjectId] = useState('all');
   const [showSeoHelp, setShowSeoHelp] = useState(false);
+  const [expandedArticleId, setExpandedArticleId] = useState(null);
 
   const handleNewArticle = () => {
     createNewArticle();
@@ -39,6 +40,8 @@ const Dashboard = () => {
       return articles;
     } else if (selectedProjectId === 'none') {
       return articles.filter(article => !article.project_id);
+    } else if (selectedProjectId === 'low-seo') {
+      return articles.filter(article => (article.seo_score || 0) < 70);
     } else {
       return articles.filter(article => article.project_id === selectedProjectId);
     }
@@ -46,8 +49,10 @@ const Dashboard = () => {
 
   // Calculate SEO statistics
   const seoStats = useMemo(() => {
-    if (filteredArticles.length === 0) {
-      return { avgScore: 0, goodScoreCount: 0 };
+    const hasArticles = filteredArticles.length > 0;
+
+    if (!hasArticles) {
+      return { avgScore: null, goodScoreCount: null, hasArticles: false };
     }
 
     const totalScore = filteredArticles.reduce((sum, article) => {
@@ -57,8 +62,13 @@ const Dashboard = () => {
     const avgScore = Math.round(totalScore / filteredArticles.length);
     const goodScoreCount = filteredArticles.filter(article => (article.seo_score || 0) >= 70).length;
 
-    return { avgScore, goodScoreCount };
+    return { avgScore, goodScoreCount, hasArticles: true };
   }, [filteredArticles]);
+
+  // Count articles with low SEO score
+  const lowSeoCount = useMemo(() => {
+    return articles.filter(article => (article.seo_score || 0) < 70).length;
+  }, [articles]);
 
   return (
     <div className="dashboard-container">
@@ -73,25 +83,28 @@ const Dashboard = () => {
         </div>
 
         {/* Project Filter */}
-        {projects.length > 0 && (
-          <div className="project-filter">
-            <label htmlFor="project-select">Filtrer par projet:</label>
-            <select
-              id="project-select"
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="project-select"
-            >
-              <option value="all">Tous les projets</option>
-              <option value="none">Sans projet</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="project-filter">
+          <label htmlFor="project-select">Filtrer par:</label>
+          <select
+            id="project-select"
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            className="project-select"
+          >
+            <option value="all">Tous les articles</option>
+            <option value="none">Sans projet</option>
+            <option value="low-seo" className="filter-warning">Score SEO &lt; 70 ({lowSeoCount})</option>
+            {projects.length > 0 && (
+              <optgroup label="Projets">
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
 
         <div className="stats-grid">
           <div className="stat-card">
@@ -123,16 +136,29 @@ const Dashboard = () => {
                 ?
               </button>
             </div>
-            <p className="stat-number" style={{ color: getSEOScoreLevel(seoStats.avgScore).color }}>
-              {seoStats.avgScore}/100
-            </p>
-            <span className="seo-level">{getSEOScoreLevel(seoStats.avgScore).level}</span>
+            {seoStats.hasArticles ? (
+              <>
+                <p className="stat-number" style={{ color: getSEOScoreLevel(seoStats.avgScore).color }}>
+                  {seoStats.avgScore}/100
+                </p>
+                <span className="seo-level">{getSEOScoreLevel(seoStats.avgScore).level}</span>
+              </>
+            ) : (
+              <>
+                <p className="stat-number stat-na">N/A</p>
+                <span className="seo-level">Aucun article</span>
+              </>
+            )}
           </div>
           <div className="stat-card">
             <h3>Bon Score SEO (≥70)</h3>
-            <p className="stat-number" style={{ color: '#28a745' }}>
-              {seoStats.goodScoreCount}
-            </p>
+            {seoStats.hasArticles ? (
+              <p className="stat-number" style={{ color: '#28a745' }}>
+                {seoStats.goodScoreCount}
+              </p>
+            ) : (
+              <p className="stat-number stat-na">N/A</p>
+            )}
           </div>
         </div>
 
@@ -149,16 +175,29 @@ const Dashboard = () => {
               {filteredArticles.map(article => {
                 const seoScore = article.seo_score || 0;
                 const seoLevel = getSEOScoreLevel(seoScore);
+                const unmetCriteria = getUnmetSEOCriteria(
+                  article.content || '',
+                  article.title || '',
+                  article.meta_description || article.metaDescription || '',
+                  article.keyword || ''
+                );
+                const isExpanded = expandedArticleId === article.id;
+
                 return (
-                  <div key={article.id} className="article-card">
+                  <div key={article.id} className={`article-card ${seoScore < 70 ? 'article-card-low-seo' : ''}`}>
                     <div className="article-header">
                       <h4>{article.article_name || article.articleName || article.title || 'Sans titre'}</h4>
                       <div className="article-badges">
                         <span className={`status-badge status-${(article.status || 'brouillon').toLowerCase().replace(' ', '-')}`}>
                           {article.status || 'Brouillon'}
                         </span>
-                        <span className="seo-score-badge" style={{ backgroundColor: seoLevel.color }}>
-                          SEO: {seoScore}/100
+                        <span
+                          className="seo-score-badge clickable"
+                          style={{ backgroundColor: seoLevel.color }}
+                          onClick={() => setExpandedArticleId(isExpanded ? null : article.id)}
+                          title="Cliquez pour voir les détails SEO"
+                        >
+                          SEO: {seoScore}/100 {unmetCriteria.length > 0 && !isExpanded ? '▼' : isExpanded ? '▲' : ''}
                         </span>
                       </div>
                     </div>
@@ -168,6 +207,27 @@ const Dashboard = () => {
                       <p><strong>Score SEO:</strong> <span style={{ color: seoLevel.color, fontWeight: 'bold' }}>{seoLevel.level}</span></p>
                       <p><strong>Dernière modification:</strong> {new Date(article.updated_at || article.lastModified || Date.now()).toLocaleDateString()}</p>
                     </div>
+
+                    {/* Critères SEO non respectés */}
+                    {isExpanded && unmetCriteria.length > 0 && (
+                      <div className="unmet-criteria-section">
+                        <h5>Critères à améliorer ({unmetCriteria.length})</h5>
+                        <div className="unmet-criteria-list">
+                          {unmetCriteria.map(criterion => (
+                            <span key={criterion.id} className="unmet-criterion-tag">
+                              {criterion.icon} {criterion.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {isExpanded && unmetCriteria.length === 0 && (
+                      <div className="unmet-criteria-section success">
+                        <p>Tous les critères SEO sont respectés !</p>
+                      </div>
+                    )}
+
                     <div className="article-actions">
                       <button onClick={() => handleEditArticle(article.id)} className="edit-button">Éditer</button>
                       {article.status !== 'Terminé' && (
