@@ -82,6 +82,38 @@ const createTables = async () => {
       console.log('✅ Rules table created');
     }
 
+    // Create seo_criteria table
+    console.log('Creating seo_criteria table...');
+    const { error: seoCriteriaError } = await supabase.rpc('exec_sql', {
+      sql: `
+        CREATE TABLE IF NOT EXISTS seo_criteria (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL,
+          criterion_id VARCHAR(100) NOT NULL,
+          label VARCHAR(255) NOT NULL,
+          description TEXT,
+          icon VARCHAR(10) DEFAULT '📝',
+          max_points INTEGER DEFAULT 10,
+          enabled BOOLEAN DEFAULT true,
+          check_type VARCHAR(50) NOT NULL,
+          min_value NUMERIC,
+          max_value NUMERIC,
+          target_value NUMERIC,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          UNIQUE(user_id, criterion_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_seo_criteria_user_id ON seo_criteria(user_id);
+      `
+    });
+
+    if (seoCriteriaError) {
+      console.log('SEO Criteria table might already exist');
+    } else {
+      console.log('✅ SEO Criteria table created');
+    }
+
     console.log('\n✨ Migration completed successfully!');
     console.log('\nNote: If using Supabase, you can also create tables directly in the Supabase Dashboard.');
     console.log('Go to: https://app.supabase.com > Your Project > Table Editor\n');
@@ -132,6 +164,26 @@ CREATE TABLE IF NOT EXISTS rules (
   UNIQUE(user_id, rule_id)
 );
 CREATE INDEX IF NOT EXISTS idx_rules_user_id ON rules(user_id);
+
+-- Create seo_criteria table
+CREATE TABLE IF NOT EXISTS seo_criteria (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  criterion_id VARCHAR(100) NOT NULL,
+  label VARCHAR(255) NOT NULL,
+  description TEXT,
+  icon VARCHAR(10) DEFAULT '📝',
+  max_points INTEGER DEFAULT 10,
+  enabled BOOLEAN DEFAULT true,
+  check_type VARCHAR(50) NOT NULL,
+  min_value NUMERIC,
+  max_value NUMERIC,
+  target_value NUMERIC,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, criterion_id)
+);
+CREATE INDEX IF NOT EXISTS idx_seo_criteria_user_id ON seo_criteria(user_id);
     `);
   }
 };

@@ -145,3 +145,48 @@ export const projectsAPI = {
     });
   },
 };
+
+// SEO Criteria API
+export const seoCriteriaAPI = {
+  getAll: async () => {
+    return fetchWithAuth('/seo-criteria');
+  },
+
+  initialize: async () => {
+    return fetchWithAuth('/seo-criteria/initialize', {
+      method: 'POST',
+    });
+  },
+
+  upsert: async (criterionData) => {
+    return fetchWithAuth('/seo-criteria/upsert', {
+      method: 'POST',
+      body: JSON.stringify(criterionData),
+    });
+  },
+
+  batchUpdate: async (criteria) => {
+    return fetchWithAuth('/seo-criteria/batch', {
+      method: 'PUT',
+      body: JSON.stringify({ criteria }),
+    });
+  },
+
+  toggle: async (criterionId) => {
+    return fetchWithAuth(`/seo-criteria/${criterionId}/toggle`, {
+      method: 'PATCH',
+    });
+  },
+
+  delete: async (criterionId) => {
+    return fetchWithAuth(`/seo-criteria/${criterionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  resetToDefault: async () => {
+    return fetchWithAuth('/seo-criteria/reset', {
+      method: 'POST',
+    });
+  },
+};

@@ -5,6 +5,7 @@ import authRoutes from './routes/authRoutes.js';
 import articlesRoutes from './routes/articlesRoutes.js';
 import rulesRoutes from './routes/rulesRoutes.js';
 import projectsRoutes from './routes/projectsRoutes.js';
+import seoCriteriaRoutes from './routes/seoCriteriaRoutes.js';
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ const PORT = process.env.PORT ?? 3000;
 app.use(cors({
   origin: true,
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
@@ -23,7 +24,7 @@ app.use(cors({
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
@@ -41,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/articles', articlesRoutes);
 app.use('/api/rules', rulesRoutes);
 app.use('/api/projects', projectsRoutes);
+app.use('/api/seo-criteria', seoCriteriaRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

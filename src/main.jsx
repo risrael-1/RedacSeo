@@ -6,16 +6,19 @@ import { AuthProvider } from './context/AuthContext'
 import { RulesProvider } from './context/RulesContext'
 import { ArticlesProvider } from './context/ArticlesContext'
 import { ProjectsProvider } from './context/ProjectsContext'
+import { SeoCriteriaProvider } from './context/SeoCriteriaContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>
       <ProjectsProvider>
-        <RulesProvider>
-          <ArticlesProvider>
-            <App />
-          </ArticlesProvider>
-        </RulesProvider>
+        <SeoCriteriaProvider>
+          <RulesProvider>
+            <ArticlesProvider>
+              <App />
+            </ArticlesProvider>
+          </RulesProvider>
+        </SeoCriteriaProvider>
       </ProjectsProvider>
     </AuthProvider>
   </StrictMode>,

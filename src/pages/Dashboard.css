@@ -544,6 +544,36 @@
   border-radius: 16px;
   font-size: 0.8rem;
   font-weight: 500;
+  flex-wrap: wrap;
+}
+
+.criterion-detail-small {
+  font-size: 0.7rem;
+  color: #999;
+  margin-left: 0.25rem;
+  font-weight: 400;
+}
+
+.criterion-params-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.criterion-params-display .param-badge {
+  font-size: 0.7rem;
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+}
+
+.seo-criterion .criterion-description {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0.5rem 0;
+  line-height: 1.4;
 }
 
 @keyframes slideDown {

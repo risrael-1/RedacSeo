@@ -2,17 +2,48 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
-import { getSEOScoreLevel, getUnmetSEOCriteria } from '../utils/seoScoreCalculator';
+import { useSeoCriteria } from '../context/SeoCriteriaContext';
 import Navbar from '../components/Navbar';
 import './Dashboard.css';
+
+// Helper pour déterminer le niveau SEO
+const getSEOScoreLevel = (score) => {
+  if (score >= 80) return { level: 'Excellent', color: '#22c55e' };
+  if (score >= 60) return { level: 'Bon', color: '#84cc16' };
+  if (score >= 40) return { level: 'Moyen', color: '#eab308' };
+  if (score >= 20) return { level: 'Faible', color: '#f97316' };
+  return { level: 'Critique', color: '#ef4444' };
+};
 
 const Dashboard = () => {
   const { articles, createNewArticle, deleteArticle, loadArticle, updateArticleStatus } = useArticles();
   const { projects } = useProjects();
+  const { criteria, getUnmetCriteria, calculateScore } = useSeoCriteria();
   const navigate = useNavigate();
   const [selectedProjectId, setSelectedProjectId] = useState('all');
   const [showSeoHelp, setShowSeoHelp] = useState(false);
   const [expandedArticleId, setExpandedArticleId] = useState(null);
+
+  // Calculer le total des points max des critères actifs
+  const totalMaxPoints = useMemo(() => {
+    return criteria.filter(c => c.enabled).reduce((sum, c) => sum + (c.max_points || 0), 0);
+  }, [criteria]);
+
+  // Recalculer les scores SEO de tous les articles avec les nouveaux critères
+  const articlesWithRecalculatedScores = useMemo(() => {
+    return articles.map(article => {
+      const result = calculateScore(
+        article.content || '',
+        article.title || '',
+        article.meta_description || article.metaDescription || '',
+        article.keyword || ''
+      );
+      return {
+        ...article,
+        calculated_seo_score: result.score
+      };
+    });
+  }, [articles, calculateScore]);
 
   const handleNewArticle = () => {
     createNewArticle();
@@ -34,20 +65,20 @@ const Dashboard = () => {
     await updateArticleStatus(articleId, 'Terminé');
   };
 
-  // Filter articles by selected project
+  // Filter articles by selected project (using recalculated scores)
   const filteredArticles = useMemo(() => {
     if (selectedProjectId === 'all') {
-      return articles;
+      return articlesWithRecalculatedScores;
     } else if (selectedProjectId === 'none') {
-      return articles.filter(article => !article.project_id);
+      return articlesWithRecalculatedScores.filter(article => !article.project_id);
     } else if (selectedProjectId === 'low-seo') {
-      return articles.filter(article => (article.seo_score || 0) < 70);
+      return articlesWithRecalculatedScores.filter(article => (article.calculated_seo_score || 0) < 70);
     } else {
-      return articles.filter(article => article.project_id === selectedProjectId);
+      return articlesWithRecalculatedScores.filter(article => article.project_id === selectedProjectId);
     }
-  }, [articles, selectedProjectId]);
+  }, [articlesWithRecalculatedScores, selectedProjectId]);
 
-  // Calculate SEO statistics
+  // Calculate SEO statistics (using recalculated scores)
   const seoStats = useMemo(() => {
     const hasArticles = filteredArticles.length > 0;
 
@@ -56,19 +87,19 @@ const Dashboard = () => {
     }
 
     const totalScore = filteredArticles.reduce((sum, article) => {
-      return sum + (article.seo_score || 0);
+      return sum + (article.calculated_seo_score || 0);
     }, 0);
 
     const avgScore = Math.round(totalScore / filteredArticles.length);
-    const goodScoreCount = filteredArticles.filter(article => (article.seo_score || 0) >= 70).length;
+    const goodScoreCount = filteredArticles.filter(article => (article.calculated_seo_score || 0) >= 70).length;
 
     return { avgScore, goodScoreCount, hasArticles: true };
   }, [filteredArticles]);
 
-  // Count articles with low SEO score
+  // Count articles with low SEO score (using recalculated scores)
   const lowSeoCount = useMemo(() => {
-    return articles.filter(article => (article.seo_score || 0) < 70).length;
-  }, [articles]);
+    return articlesWithRecalculatedScores.filter(article => (article.calculated_seo_score || 0) < 70).length;
+  }, [articlesWithRecalculatedScores]);
 
   return (
     <div className="dashboard-container">
@@ -123,12 +154,6 @@ const Dashboard = () => {
               {filteredArticles.filter(a => a.status === 'Terminé').length}
             </p>
           </div>
-          <div className="stat-card">
-            <h3>Mots totaux</h3>
-            <p className="stat-number">
-              {filteredArticles.reduce((sum, a) => sum + (a.word_count || 0), 0)}
-            </p>
-          </div>
           <div className="stat-card seo-stat-card">
             <div className="stat-card-header">
               <h3>Score SEO Moyen</h3>
@@ -173,9 +198,9 @@ const Dashboard = () => {
           ) : (
             <div className="articles-list">
               {filteredArticles.map(article => {
-                const seoScore = article.seo_score || 0;
+                const seoScore = article.calculated_seo_score || 0;
                 const seoLevel = getSEOScoreLevel(seoScore);
-                const unmetCriteria = getUnmetSEOCriteria(
+                const unmetCriteria = getUnmetCriteria(
                   article.content || '',
                   article.title || '',
                   article.meta_description || article.metaDescription || '',
@@ -214,8 +239,9 @@ const Dashboard = () => {
                         <h5>Critères à améliorer ({unmetCriteria.length})</h5>
                         <div className="unmet-criteria-list">
                           {unmetCriteria.map(criterion => (
-                            <span key={criterion.id} className="unmet-criterion-tag">
+                            <span key={criterion.criterion_id} className="unmet-criterion-tag">
                               {criterion.icon} {criterion.label}
+                              <span className="criterion-detail-small">{criterion.detail}</span>
                             </span>
                           ))}
                         </div>
@@ -254,129 +280,31 @@ const Dashboard = () => {
               </div>
               <div className="seo-help-content">
                 <p className="seo-help-intro">
-                  Le score SEO est calculé sur <strong>100 points</strong> en fonction de 12 critères. Voici comment optimiser votre contenu:
+                  Le score SEO est calculé sur <strong>{totalMaxPoints} points</strong> (normalisé sur 100) en fonction de {criteria.filter(c => c.enabled).length} critères actifs. Voici vos critères:
                 </p>
 
                 <div className="seo-criteria-grid">
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">📝</span>
-                      <h4>Longueur du contenu</h4>
-                      <span className="criterion-points">15 pts</span>
+                  {criteria.filter(c => c.enabled).map(criterion => (
+                    <div key={criterion.criterion_id} className="seo-criterion">
+                      <div className="criterion-header">
+                        <span className="criterion-icon">{criterion.icon}</span>
+                        <h4>{criterion.label}</h4>
+                        <span className="criterion-points">{criterion.max_points} pts</span>
+                      </div>
+                      <p className="criterion-description">{criterion.description}</p>
+                      <div className="criterion-params-display">
+                        {criterion.min_value !== null && criterion.min_value !== undefined && (
+                          <span className="param-badge">Min: {criterion.min_value}</span>
+                        )}
+                        {criterion.max_value !== null && criterion.max_value !== undefined && (
+                          <span className="param-badge">Max: {criterion.max_value}</span>
+                        )}
+                        {criterion.target_value !== null && criterion.target_value !== undefined && (
+                          <span className="param-badge">Cible: {criterion.target_value}</span>
+                        )}
+                      </div>
                     </div>
-                    <ul className="criterion-list">
-                      <li>≥800 mots = 15 points ⭐</li>
-                      <li>≥500 mots = 13 points</li>
-                      <li>≥300 mots = 11 points</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">🎯</span>
-                      <h4>Mot-clé dans le titre</h4>
-                      <span className="criterion-points">12 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>Au début du titre = 12 points ⭐</li>
-                      <li>Dans les 10 premiers caractères = 10 points</li>
-                      <li>Ailleurs dans le titre = 8 points</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">💎</span>
-                      <h4>Densité du mot-clé</h4>
-                      <span className="criterion-points">12 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>1-2.5% du contenu = 12 points ⭐</li>
-                      <li>Ex: 5-10 fois pour 500 mots</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">🏷️</span>
-                      <h4>Structure H1</h4>
-                      <span className="criterion-points">13 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>1 seul H1 = 10 points</li>
-                      <li>H1 avec mot-clé = +3 points bonus ⭐</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">📋</span>
-                      <h4>Structure H2/H3</h4>
-                      <span className="criterion-points">10 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>≥3 H2 = 6 points</li>
-                      <li>≥2 H3 = 4 points</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">📄</span>
-                      <h4>Meta description</h4>
-                      <span className="criterion-points">8 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>120-160 caractères = 8 points ⭐</li>
-                      <li>Doit contenir le mot-clé = +8 points</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">📌</span>
-                      <h4>Titre SEO</h4>
-                      <span className="criterion-points">5 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>30-60 caractères = 5 points ⭐</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">⚡</span>
-                      <h4>Mot-clé au début</h4>
-                      <span className="criterion-points">5 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>Dans les 100 premiers mots = 5 points ⭐</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">💪</span>
-                      <h4>Contenu en gras</h4>
-                      <span className="criterion-points">5 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>≥5 balises strong = 5 points</li>
-                      <li>≥3 balises strong = 4 points</li>
-                    </ul>
-                  </div>
-
-                  <div className="seo-criterion">
-                    <div className="criterion-header">
-                      <span className="criterion-icon">✅</span>
-                      <h4>Bonus</h4>
-                      <span className="criterion-points">7 pts</span>
-                    </div>
-                    <ul className="criterion-list">
-                      <li>Titre présent = 5 points</li>
-                      <li>Meta description présente = 2 points</li>
-                    </ul>
-                  </div>
+                  ))}
                 </div>
 
                 <div className="seo-help-tips">

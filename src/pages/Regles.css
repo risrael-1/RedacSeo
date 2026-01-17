@@ -433,6 +433,191 @@
   font-weight: 600;
 }
 
+/* Criteria Actions */
+.criteria-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.customize-btn,
+.add-criterion-btn,
+.reset-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.customize-btn,
+.add-criterion-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.customize-btn:hover,
+.add-criterion-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.reset-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.reset-btn:hover {
+  background: #5a6268;
+}
+
+/* Add Criterion Form */
+.add-criterion-form {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+.add-criterion-form h4 {
+  margin: 0 0 1.25rem 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.criterion-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Icon Selector */
+.icon-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  border-color: #667eea;
+  transform: scale(1.1);
+}
+
+.icon-btn.selected {
+  border-color: #667eea;
+  background: #f0f4ff;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+/* Criterion Card Header */
+.criterion-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+/* Criterion Description */
+.criterion-description {
+  color: #666;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+  line-height: 1.4;
+}
+
+/* Criterion Params */
+.criterion-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.param-badge {
+  background: #e9ecef;
+  color: #495057;
+  padding: 0.25rem 0.625rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Criterion Actions */
+.criterion-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eee;
+}
+
+.toggle-switch.small {
+  width: 40px;
+  height: 22px;
+}
+
+.toggle-switch.small .toggle-slider:before {
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+}
+
+.toggle-switch.small input:checked + .toggle-slider:before {
+  transform: translateX(18px);
+}
+
+.edit-criterion-btn,
+.delete-criterion-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.edit-criterion-btn:hover {
+  background: #e9ecef;
+}
+
+.delete-criterion-btn:hover {
+  background: #ffebee;
+}
+
+/* Loading Text */
+.loading-text {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+  grid-column: 1 / -1;
+}
+
+/* Score Criterion Card Disabled */
+.score-criterion-card.disabled {
+  opacity: 0.5;
+  background: #f8f9fa;
+}
+
 @media (max-width: 768px) {
   .form-grid {
     grid-template-columns: 1fr;
@@ -463,5 +648,17 @@
 
   .criterion-icon {
     font-size: 1.5rem;
+  }
+
+  .criterion-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .criteria-actions {
+    flex-direction: column;
+  }
+
+  .criteria-actions button {
+    width: 100%;
   }
 }
