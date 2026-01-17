@@ -1,10 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRules } from '../context/RulesContext';
 import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
-import { calculateSEOScore } from '../utils/seoScoreCalculator';
+import { useSeoCriteria } from '../context/SeoCriteriaContext';
 import Navbar from '../components/Navbar';
 import './Redaction.css';
+
+// Helper pour déterminer le niveau SEO
+const getSEOScoreLevel = (score) => {
+  if (score >= 80) return { level: 'Excellent', color: '#22c55e' };
+  if (score >= 60) return { level: 'Bon', color: '#84cc16' };
+  if (score >= 40) return { level: 'Moyen', color: '#eab308' };
+  if (score >= 20) return { level: 'Faible', color: '#f97316' };
+  return { level: 'Critique', color: '#ef4444' };
+};
 
 const Redaction = () => {
   const [title, setTitle] = useState('');
@@ -14,8 +23,6 @@ const Redaction = () => {
   const [secondaryKeywordInput, setSecondaryKeywordInput] = useState('');
   const [content, setContent] = useState('');
   const [results, setResults] = useState([]);
-  const [titleSuggestions, setTitleSuggestions] = useState([]);
-  const [metaSuggestions, setMetaSuggestions] = useState([]);
   const [articleName, setArticleName] = useState('');
   const [projectId, setProjectId] = useState(null);
   const [showSavePopup, setShowSavePopup] = useState(false);
@@ -24,10 +31,20 @@ const Redaction = () => {
   const { checkRules } = useRules();
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
+  const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
+
+  // Ref pour tracker si l'article a été modifié par l'utilisateur
+  const hasUserModified = useRef(false);
+  // Ref pour stocker l'ID de l'article en cours
+  const currentArticleIdRef = useRef(null);
 
   // Charger l'article en cours
   useEffect(() => {
     if (currentArticle) {
+      // Reset le flag de modification quand on charge un nouvel article
+      hasUserModified.current = false;
+      currentArticleIdRef.current = currentArticle.id;
+
       setTitle(currentArticle.title || '');
       setMetaDescription(currentArticle.metaDescription || '');
       setKeyword(currentArticle.keyword || '');
@@ -38,16 +55,53 @@ const Redaction = () => {
     }
   }, [currentArticle]);
 
-  // Auto-save toutes les 30 secondes
+  // Marquer comme modifié quand l'utilisateur change quelque chose
+  const markAsModified = useCallback(() => {
+    hasUserModified.current = true;
+  }, []);
+
+  // Auto-save toutes les 30 secondes (utilise useCallback pour éviter stale closures)
+  const performAutoSave = useCallback(() => {
+    // Ne pas auto-sauvegarder si :
+    // 1. L'utilisateur n'a pas modifié l'article
+    // 2. Le nom de l'article est vide (obligatoire pour sauvegarder)
+    // 3. Il n'y a pas de contenu substantiel
+    if (!hasUserModified.current) {
+      return;
+    }
+
+    if (!articleName || articleName.trim() === '') {
+      return; // Ne pas sauvegarder sans nom d'article
+    }
+
+    if (!content && !title && !keyword) {
+      return; // Ne pas sauvegarder si tout est vide
+    }
+
+    const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const seoResult = calculateScore(content, title, metaDescription, keyword);
+
+    saveArticle({
+      projectId: projectId || null,
+      articleName: articleName.trim(),
+      title,
+      metaDescription,
+      keyword,
+      secondaryKeywords,
+      content,
+      wordCount,
+      seoScore: seoResult.score,
+      status: 'En cours',
+    });
+  }, [articleName, title, metaDescription, keyword, secondaryKeywords, content, projectId, saveArticle, calculateScore]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      if (content || title || keyword) {
-        handleSave(false); // Sauvegarde silencieuse
-      }
+      performAutoSave();
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [title, metaDescription, keyword, secondaryKeywords, content, articleName, projectId]);
+  }, [performAutoSave]);
 
   const handleSave = (showAlert = true) => {
     // Validation du nom de l'article
@@ -61,7 +115,7 @@ const Redaction = () => {
 
     setArticleNameError('');
     const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
-    const seoScore = calculateSEOScore(content, title, metaDescription, keyword);
+    const seoResult = calculateScore(content, title, metaDescription, keyword);
 
     const article = saveArticle({
       projectId: projectId || null,
@@ -72,15 +126,20 @@ const Redaction = () => {
       secondaryKeywords,
       content,
       wordCount,
-      seoScore,
+      seoScore: seoResult.score,
       status: 'En cours',
     });
 
-    if (showAlert && article) {
-      setShowSavePopup(true);
-      setTimeout(() => {
-        setShowSavePopup(false);
-      }, 3000);
+    if (article) {
+      // Reset le flag de modification après une sauvegarde réussie
+      hasUserModified.current = false;
+
+      if (showAlert) {
+        setShowSavePopup(true);
+        setTimeout(() => {
+          setShowSavePopup(false);
+        }, 3000);
+      }
     }
   };
 
@@ -91,6 +150,7 @@ const Redaction = () => {
   const confirmClearContent = () => {
     setContent('');
     setShowClearPopup(false);
+    markAsModified();
   };
 
   const cancelClearContent = () => {
@@ -101,11 +161,13 @@ const Redaction = () => {
     if (secondaryKeywordInput.trim() && !secondaryKeywords.includes(secondaryKeywordInput.trim())) {
       setSecondaryKeywords([...secondaryKeywords, secondaryKeywordInput.trim()]);
       setSecondaryKeywordInput('');
+      markAsModified();
     }
   };
 
   const removeSecondaryKeyword = (keyword) => {
     setSecondaryKeywords(secondaryKeywords.filter(k => k !== keyword));
+    markAsModified();
   };
 
   const applyKeywordBold = (text, primaryKeyword, secondaryKeywordsArray) => {
@@ -153,6 +215,7 @@ const Redaction = () => {
     const end = textarea.selectionEnd;
     const newContent = content.substring(0, start) + pastedText + content.substring(end);
     setContent(newContent);
+    markAsModified();
   };
 
   const applyBoldToExistingContent = () => {
@@ -162,12 +225,13 @@ const Redaction = () => {
     }
     const processedContent = applyKeywordBold(content, keyword, secondaryKeywords);
     setContent(processedContent);
+    markAsModified();
   };
 
-  const generateSuggestions = () => {
+  // Générer les suggestions automatiquement basées sur le contenu
+  const suggestions = useMemo(() => {
     if (!content || content.trim().length < 50) {
-      alert('Veuillez écrire au moins 50 caractères de contenu pour générer des suggestions');
-      return;
+      return { titles: [], metas: [] };
     }
 
     // Extraire les mots clés principaux du contenu
@@ -191,22 +255,20 @@ const Redaction = () => {
     // Générer des suggestions de titre (max 65 caractères)
     const titles = [
       firstSentence.substring(0, 60) + (firstSentence.length > 60 ? '...' : ''),
-      `Guide complet : ${sortedWords[0]}`.substring(0, 65),
-      `Tout savoir sur ${sortedWords[0]} en 2026`.substring(0, 65),
-      `${sortedWords[0]} : astuces et conseils`.substring(0, 65)
-    ].filter(t => t.length <= 65);
-
-    setTitleSuggestions(titles);
+      sortedWords[0] ? `Guide complet : ${sortedWords[0]}`.substring(0, 65) : null,
+      sortedWords[0] ? `Tout savoir sur ${sortedWords[0]} en 2026`.substring(0, 65) : null,
+      sortedWords[0] ? `${sortedWords[0]} : astuces et conseils`.substring(0, 65) : null
+    ].filter(t => t && t.length > 0 && t.length <= 65);
 
     // Générer des suggestions de meta description (150-160 caractères)
     const metas = [
       firstParagraph.substring(0, 155) + (firstParagraph.length > 155 ? '...' : ''),
-      `Découvrez tout sur ${sortedWords[0]}. Guide pratique et conseils pour ${sortedWords[1]}. ${firstSentence.substring(0, 80)}`.substring(0, 160),
+      sortedWords[0] && sortedWords[1] ? `Découvrez tout sur ${sortedWords[0]}. Guide pratique et conseils pour ${sortedWords[1]}. ${firstSentence.substring(0, 80)}`.substring(0, 160) : null,
       `${firstSentence.substring(0, 140)}. En savoir plus...`.substring(0, 160)
-    ].filter(m => m.length >= 120 && m.length <= 160);
+    ].filter(m => m && m.length >= 100 && m.length <= 160);
 
-    setMetaSuggestions(metas);
-  };
+    return { titles, metas };
+  }, [content]);
 
   const handleCheck = () => {
     const ruleResults = checkRules(content, title, metaDescription, keyword);
@@ -231,12 +293,30 @@ const Redaction = () => {
     }
 
     setContent(newText);
+    markAsModified();
   };
 
   const getWordCount = () => {
     if (!content) return 0;
     return content.trim().split(/\s+/).filter(w => w.length > 0).length;
   };
+
+  // Calcul en temps réel du score et des critères SEO
+  const seoAnalysis = useMemo(() => {
+    const result = calculateScore(content, title, metaDescription, keyword);
+    const criteria = getAllCriteriaStatus(content, title, metaDescription, keyword);
+    const level = getSEOScoreLevel(result.score);
+    const validCount = criteria.filter(c => c.isValid).length;
+    return {
+      score: result.score,
+      criteria,
+      level,
+      validCount,
+      totalCount: criteria.length,
+      totalPoints: result.totalPoints,
+      maxPoints: result.maxPoints
+    };
+  }, [content, title, metaDescription, keyword, calculateScore, getAllCriteriaStatus]);
 
   return (
     <div className="redaction-container">
@@ -247,9 +327,6 @@ const Redaction = () => {
           <div className="header-buttons">
             <button onClick={() => handleSave(true)} className="save-button">
               Sauvegarder
-            </button>
-            <button onClick={generateSuggestions} className="suggest-button">
-              Générer des suggestions
             </button>
             <button onClick={handleCheck} className="check-button">
               Vérifier les règles SEO
@@ -297,6 +374,7 @@ const Redaction = () => {
                 value={articleName}
                 onChange={(e) => {
                   setArticleName(e.target.value);
+                  markAsModified();
                   if (e.target.value.trim()) {
                     setArticleNameError('');
                   }
@@ -316,7 +394,7 @@ const Redaction = () => {
                 <select
                   id="projectSelect"
                   value={projectId || ''}
-                  onChange={(e) => setProjectId(e.target.value || null)}
+                  onChange={(e) => { setProjectId(e.target.value || null); markAsModified(); }}
                   className="project-select-field"
                 >
                   <option value="">Aucun projet</option>
@@ -337,7 +415,7 @@ const Redaction = () => {
                     type="text"
                     id="keyword"
                     value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
+                    onChange={(e) => { setKeyword(e.target.value); markAsModified(); }}
                     placeholder="Ex: rédaction SEO"
                   />
                 </div>
@@ -349,7 +427,7 @@ const Redaction = () => {
                       type="text"
                       id="secondaryKeywordInput"
                       value={secondaryKeywordInput}
-                      onChange={(e) => setSecondaryKeywordInput(e.target.value)}
+                      onChange={(e) => { setSecondaryKeywordInput(e.target.value); markAsModified(); }}
                       onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSecondaryKeyword())}
                       placeholder="Ex: optimisation contenu"
                     />
@@ -373,6 +451,108 @@ const Redaction = () => {
                 Appliquer le gras aux mots-clés
               </button>
             </div>
+
+            {/* Suggestions SEO automatiques */}
+            {(suggestions.titles.length > 0 || suggestions.metas.length > 0) && (
+              <div className="auto-suggestions-section">
+                <h3>Suggestions SEO</h3>
+
+                {/* Titre SEO */}
+                <div className="suggestion-group">
+                  <div className="suggestion-group-header">
+                    <label htmlFor="title">Titre SEO</label>
+                    <span className="char-count-inline">{title.length}/65 car.</span>
+                  </div>
+                  {suggestions.titles.length > 0 && (
+                    <div className="suggestions-chips">
+                      {suggestions.titles.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          className={`suggestion-chip ${title === suggestion ? 'selected' : ''}`}
+                          onClick={() => { setTitle(suggestion); markAsModified(); }}
+                          title={`${suggestion.length} caractères`}
+                        >
+                          {suggestion.substring(0, 40)}{suggestion.length > 40 ? '...' : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    id="title"
+                    value={title}
+                    onChange={(e) => { setTitle(e.target.value); markAsModified(); }}
+                    placeholder="Sélectionnez une suggestion ou entrez votre titre"
+                    maxLength="70"
+                  />
+                </div>
+
+                {/* Meta Description */}
+                <div className="suggestion-group">
+                  <div className="suggestion-group-header">
+                    <label htmlFor="metaDescription">Meta description</label>
+                    <span className="char-count-inline">{metaDescription.length}/160 car.</span>
+                  </div>
+                  {suggestions.metas.length > 0 && (
+                    <div className="suggestions-metas">
+                      {suggestions.metas.map((suggestion, index) => (
+                        <div
+                          key={index}
+                          className={`suggestion-meta-item ${metaDescription === suggestion ? 'selected' : ''}`}
+                          onClick={() => { setMetaDescription(suggestion); markAsModified(); }}
+                        >
+                          <span className="suggestion-meta-text">{suggestion}</span>
+                          <span className="suggestion-meta-length">{suggestion.length} car.</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <textarea
+                    id="metaDescription"
+                    value={metaDescription}
+                    onChange={(e) => { setMetaDescription(e.target.value); markAsModified(); }}
+                    placeholder="Sélectionnez une suggestion ou entrez votre meta description"
+                    rows="2"
+                    maxLength="170"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Titre et Meta sans suggestions (quand pas assez de contenu) */}
+            {suggestions.titles.length === 0 && suggestions.metas.length === 0 && (
+              <div className="seo-fields-section">
+                <div className="form-group">
+                  <div className="suggestion-group-header">
+                    <label htmlFor="title">Titre SEO</label>
+                    <span className="char-count-inline">{title.length}/65 car.</span>
+                  </div>
+                  <input
+                    type="text"
+                    id="title"
+                    value={title}
+                    onChange={(e) => { setTitle(e.target.value); markAsModified(); }}
+                    placeholder="Entrez votre titre SEO (les suggestions apparaîtront après 50 caractères de contenu)"
+                    maxLength="70"
+                  />
+                </div>
+                <div className="form-group">
+                  <div className="suggestion-group-header">
+                    <label htmlFor="metaDescription">Meta description</label>
+                    <span className="char-count-inline">{metaDescription.length}/160 car.</span>
+                  </div>
+                  <textarea
+                    id="metaDescription"
+                    value={metaDescription}
+                    onChange={(e) => { setMetaDescription(e.target.value); markAsModified(); }}
+                    placeholder="Entrez votre meta description (les suggestions apparaîtront après 50 caractères de contenu)"
+                    rows="2"
+                    maxLength="170"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="editor-toolbar">
               <button onClick={() => insertTag('bold')} className="toolbar-btn" title="Gras">
@@ -402,76 +582,59 @@ const Redaction = () => {
               <textarea
                 id="content-editor"
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => { setContent(e.target.value); markAsModified(); }}
                 onPaste={handlePaste}
                 placeholder="Collez ou rédigez votre contenu ici..."
                 rows="20"
               />
               <span className="char-count">{getWordCount()} mots</span>
             </div>
-
-            {titleSuggestions.length > 0 && (
-              <div className="suggestions-section">
-                <h3>Suggestions de titre SEO</h3>
-                <div className="suggestions-list">
-                  {titleSuggestions.map((suggestion, index) => (
-                    <div
-                      key={index}
-                      className="suggestion-item"
-                      onClick={() => setTitle(suggestion)}
-                    >
-                      <span className="suggestion-text">{suggestion}</span>
-                      <span className="suggestion-length">{suggestion.length} car.</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="title">Titre SEO choisi</label>
-                  <input
-                    type="text"
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Sélectionnez une suggestion ou entrez votre titre"
-                    maxLength="70"
-                  />
-                  <span className="char-count">{title.length} / 65 caractères</span>
-                </div>
-              </div>
-            )}
-
-            {metaSuggestions.length > 0 && (
-              <div className="suggestions-section">
-                <h3>Suggestions de meta description</h3>
-                <div className="suggestions-list">
-                  {metaSuggestions.map((suggestion, index) => (
-                    <div
-                      key={index}
-                      className="suggestion-item"
-                      onClick={() => setMetaDescription(suggestion)}
-                    >
-                      <span className="suggestion-text">{suggestion}</span>
-                      <span className="suggestion-length">{suggestion.length} car.</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="metaDescription">Meta description choisie</label>
-                  <textarea
-                    id="metaDescription"
-                    value={metaDescription}
-                    onChange={(e) => setMetaDescription(e.target.value)}
-                    placeholder="Sélectionnez une suggestion ou entrez votre meta description"
-                    rows="3"
-                    maxLength="170"
-                  />
-                  <span className="char-count">{metaDescription.length} / 160 caractères</span>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="results-section">
+            {/* Panneau Score SEO en temps réel */}
+            <div className="seo-realtime-panel">
+              <div className="seo-score-header">
+                <h3>Score SEO</h3>
+                <div className="seo-score-display" style={{ backgroundColor: seoAnalysis.level.color }}>
+                  {seoAnalysis.score}/100
+                </div>
+              </div>
+              <div className="seo-score-level" style={{ color: seoAnalysis.level.color }}>
+                {seoAnalysis.level.level}
+              </div>
+              <div className="seo-criteria-progress">
+                <span>{seoAnalysis.validCount}/{seoAnalysis.totalCount} critères respectés</span>
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${(seoAnalysis.validCount / seoAnalysis.totalCount) * 100}%`,
+                      backgroundColor: seoAnalysis.level.color
+                    }}
+                  ></div>
+                </div>
+              </div>
+              <div className="seo-criteria-list-realtime">
+                {seoAnalysis.criteria.map(criterion => (
+                  <div
+                    key={criterion.criterion_id}
+                    className={`seo-criterion-item ${criterion.isValid ? 'valid' : 'invalid'}`}
+                  >
+                    <span className="criterion-status">
+                      {criterion.isValid ? '✓' : '✗'}
+                    </span>
+                    <span className="criterion-icon">{criterion.icon}</span>
+                    <div className="criterion-info">
+                      <span className="criterion-label">{criterion.label}</span>
+                      <span className="criterion-detail">{criterion.detail}</span>
+                    </div>
+                    <span className="criterion-points">{criterion.points}/{criterion.max_points}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="saved-articles">
               <h3>Articles sauvegardés</h3>
               <button onClick={createNewArticle} className="new-article-btn">+ Nouvel article</button>

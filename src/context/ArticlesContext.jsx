@@ -80,8 +80,20 @@ export const ArticlesProvider = ({ children }) => {
         return [savedArticle, ...prev];
       });
 
-      setCurrentArticle(savedArticle);
-      return savedArticle;
+      // Transform API data to frontend format (same as loadArticle)
+      const frontendArticle = {
+        ...savedArticle,
+        projectId: savedArticle.project_id,
+        articleName: savedArticle.article_name,
+        metaDescription: savedArticle.meta_description,
+        secondaryKeywords: savedArticle.secondary_keywords || [],
+        wordCount: savedArticle.word_count,
+        seoScore: savedArticle.seo_score,
+        lastModified: savedArticle.updated_at,
+      };
+
+      setCurrentArticle(frontendArticle);
+      return frontendArticle;
     } catch (error) {
       console.error('Failed to save article:', error);
       return null;
@@ -141,12 +153,25 @@ export const ArticlesProvider = ({ children }) => {
         status: newStatus,
       });
 
+      const savedArticle = response.article;
+
       setArticles(prev =>
-        prev.map(a => (a.id === articleId ? response.article : a))
+        prev.map(a => (a.id === articleId ? savedArticle : a))
       );
 
       if (currentArticle?.id === articleId) {
-        setCurrentArticle(response.article);
+        // Transform API data to frontend format
+        const frontendArticle = {
+          ...savedArticle,
+          projectId: savedArticle.project_id,
+          articleName: savedArticle.article_name,
+          metaDescription: savedArticle.meta_description,
+          secondaryKeywords: savedArticle.secondary_keywords || [],
+          wordCount: savedArticle.word_count,
+          seoScore: savedArticle.seo_score,
+          lastModified: savedArticle.updated_at,
+        };
+        setCurrentArticle(frontendArticle);
       }
     } catch (error) {
       console.error('Failed to update article status:', error);
