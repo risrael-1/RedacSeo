@@ -375,6 +375,112 @@ const Redaction = () => {
     return cleanedHtml;
   };
 
+  // Fonction pour convertir du texte brut en HTML avec détection des titres
+  const convertPlainTextToHtml = (text) => {
+    const lines = text.split('\n');
+    let result = [];
+    let isFirstNonEmptyLine = true;
+    let currentParagraph = [];
+
+    // Patterns pour détecter les titres H2 (lignes courtes qui ressemblent à des titres)
+    const isTitleLine = (line) => {
+      const trimmed = line.trim();
+      // Critères pour un titre :
+      // - Entre 10 et 100 caractères
+      // - Ne finit pas par un point (sauf ...)
+      // - Peut contenir ":" ou "-"
+      // - Pas trop de mots (max ~15)
+      if (trimmed.length < 10 || trimmed.length > 100) return false;
+      if (trimmed.endsWith('.') && !trimmed.endsWith('...')) return false;
+      if (trimmed.endsWith(',') || trimmed.endsWith(';')) return false;
+
+      const wordCount = trimmed.split(/\s+/).length;
+      if (wordCount > 15) return false;
+
+      // Bonus : contient souvent ":" ou commence par une majuscule
+      const startsWithCapital = /^[A-ZÀ-Ü]/.test(trimmed);
+      const hasColon = trimmed.includes(':');
+      const hasQuestion = trimmed.includes('?');
+
+      return startsWithCapital && (hasColon || hasQuestion || wordCount <= 10);
+    };
+
+    // Patterns pour détecter les sous-titres H3 (FAQ, questions)
+    const isSubtitleLine = (line) => {
+      const trimmed = line.trim();
+      // Questions courtes ou lignes commençant par des patterns FAQ
+      if (trimmed.endsWith('?') && trimmed.length < 120) return true;
+      if (/^(FAQ|Q:|Question)/i.test(trimmed)) return true;
+      return false;
+    };
+
+    // Fonction pour flush le paragraphe en cours
+    const flushParagraph = () => {
+      if (currentParagraph.length > 0) {
+        const paragraphText = currentParagraph.join(' ').trim();
+        if (paragraphText) {
+          result.push(`<p style="text-align: justify;">${paragraphText}</p>`);
+        }
+        currentParagraph = [];
+      }
+    };
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+
+      // Ligne vide = fin de paragraphe
+      if (!trimmedLine) {
+        flushParagraph();
+        return;
+      }
+
+      // Première ligne non vide = H1 (titre principal)
+      if (isFirstNonEmptyLine) {
+        flushParagraph();
+        result.push(`<h1 style="text-align: center;">${trimmedLine}</h1>`);
+        isFirstNonEmptyLine = false;
+        return;
+      }
+
+      // Détecter les liens/boutons (format [texte] ou texte avec URL)
+      if (/^\[.*\].*$/.test(trimmedLine) || /^https?:\/\//.test(trimmedLine)) {
+        flushParagraph();
+        // Extraire le texte du lien si format [texte](url) ou [url]texte
+        const linkMatch = trimmedLine.match(/\[(https?:\/\/[^\]]+)\](.+)/);
+        if (linkMatch) {
+          result.push(`<p style="text-align: justify;"><a class="button" href="${linkMatch[1]}">${linkMatch[2].trim()}</a></p>`);
+        } else {
+          result.push(`<p style="text-align: justify;">${trimmedLine}</p>`);
+        }
+        return;
+      }
+
+      // Détecter H3 (sous-titres, questions FAQ)
+      if (isSubtitleLine(trimmedLine)) {
+        flushParagraph();
+        result.push(`<h3 style="text-align: justify;">${trimmedLine}</h3>`);
+        return;
+      }
+
+      // Détecter H2 (titres de section)
+      // On vérifie aussi que la ligne précédente était vide ou que c'est après plusieurs paragraphes
+      const prevLine = index > 0 ? lines[index - 1].trim() : '';
+      if (isTitleLine(trimmedLine) && (prevLine === '' || index < 3)) {
+        flushParagraph();
+        result.push(`<h2 style="text-align: justify;">${trimmedLine}</h2>`);
+        return;
+      }
+
+      // Sinon c'est du contenu de paragraphe
+      currentParagraph.push(trimmedLine);
+    });
+
+    // Flush le dernier paragraphe
+    flushParagraph();
+
+    return result.join('\n');
+  };
+
   const handlePaste = (e) => {
     e.preventDefault();
 
@@ -387,9 +493,11 @@ const Redaction = () => {
     if (htmlContent) {
       // Si on a du HTML, le nettoyer pour garder la mise en forme
       pastedContent = cleanPastedHtml(htmlContent);
+    } else if (textContent) {
+      // Si c'est du texte brut, essayer de détecter la structure
+      pastedContent = convertPlainTextToHtml(textContent);
     } else {
-      // Sinon, utiliser le texte brut
-      pastedContent = textContent;
+      pastedContent = '';
     }
 
     const textarea = document.getElementById('content-editor');
