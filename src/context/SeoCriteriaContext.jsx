@@ -319,13 +319,27 @@ export const SeoCriteriaProvider = ({ children }) => {
     }
   };
 
+  // Critères liés au titre et meta description
+  const titleMetaCriteriaIds = [
+    'keyword-title',
+    'keyword-meta',
+    'meta-length',
+    'title-length',
+    'title-present',
+    'meta-present'
+  ];
+
   // Calculate SEO score based on current criteria
-  const calculateScore = useCallback((content, title, metaDescription, keyword) => {
+  const calculateScore = useCallback((content, title, metaDescription, keyword, seoFieldsEnabled = true) => {
     if (!content || !content.trim()) {
       return { score: 0, details: [] };
     }
 
-    const enabledCriteria = criteria.filter(c => c.enabled);
+    // Filtrer les critères : exclure ceux liés au titre/meta si désactivé
+    let enabledCriteria = criteria.filter(c => c.enabled);
+    if (!seoFieldsEnabled) {
+      enabledCriteria = enabledCriteria.filter(c => !titleMetaCriteriaIds.includes(c.criterion_id));
+    }
     let totalScore = 0;
     const details = [];
 
@@ -551,14 +565,14 @@ export const SeoCriteriaProvider = ({ children }) => {
   }, [criteria]);
 
   // Get all criteria status (for real-time display)
-  const getAllCriteriaStatus = useCallback((content, title, metaDescription, keyword) => {
-    const result = calculateScore(content, title, metaDescription, keyword);
+  const getAllCriteriaStatus = useCallback((content, title, metaDescription, keyword, seoFieldsEnabled = true) => {
+    const result = calculateScore(content, title, metaDescription, keyword, seoFieldsEnabled);
     return result.details;
   }, [calculateScore]);
 
   // Get unmet criteria
-  const getUnmetCriteria = useCallback((content, title, metaDescription, keyword) => {
-    const result = calculateScore(content, title, metaDescription, keyword);
+  const getUnmetCriteria = useCallback((content, title, metaDescription, keyword, seoFieldsEnabled = true) => {
+    const result = calculateScore(content, title, metaDescription, keyword, seoFieldsEnabled);
     return result.details.filter(d => !d.isValid);
   }, [calculateScore]);
 

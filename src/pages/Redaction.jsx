@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useRules } from '../context/RulesContext';
 import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
 import { useSeoCriteria } from '../context/SeoCriteriaContext';
@@ -22,13 +21,12 @@ const Redaction = () => {
   const [secondaryKeywords, setSecondaryKeywords] = useState([]);
   const [secondaryKeywordInput, setSecondaryKeywordInput] = useState('');
   const [content, setContent] = useState('');
-  const [results, setResults] = useState([]);
   const [articleName, setArticleName] = useState('');
   const [projectId, setProjectId] = useState(null);
   const [showSavePopup, setShowSavePopup] = useState(false);
   const [showClearPopup, setShowClearPopup] = useState(false);
   const [articleNameError, setArticleNameError] = useState('');
-  const { checkRules } = useRules();
+  const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
   const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
@@ -52,6 +50,7 @@ const Redaction = () => {
       setContent(currentArticle.content || '');
       setArticleName(currentArticle.articleName || '');
       setProjectId(currentArticle.projectId || null);
+      setSeoFieldsEnabled(currentArticle.seoFieldsEnabled !== false); // true par défaut
     }
   }, [currentArticle]);
 
@@ -79,7 +78,8 @@ const Redaction = () => {
     }
 
     const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
-    const seoResult = calculateScore(content, title, metaDescription, keyword);
+    // Le score est calculé en fonction de seoFieldsEnabled (ignore titre/meta si désactivé)
+    const seoResult = calculateScore(content, title, metaDescription, keyword, seoFieldsEnabled);
 
     saveArticle({
       projectId: projectId || null,
@@ -91,9 +91,10 @@ const Redaction = () => {
       content,
       wordCount,
       seoScore: seoResult.score,
+      seoFieldsEnabled,
       status: 'En cours',
     });
-  }, [articleName, title, metaDescription, keyword, secondaryKeywords, content, projectId, saveArticle, calculateScore]);
+  }, [articleName, title, metaDescription, keyword, secondaryKeywords, content, projectId, seoFieldsEnabled, saveArticle, calculateScore]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -115,7 +116,8 @@ const Redaction = () => {
 
     setArticleNameError('');
     const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
-    const seoResult = calculateScore(content, title, metaDescription, keyword);
+    // Le score est calculé en fonction de seoFieldsEnabled (ignore titre/meta si désactivé)
+    const seoResult = calculateScore(content, title, metaDescription, keyword, seoFieldsEnabled);
 
     const article = saveArticle({
       projectId: projectId || null,
@@ -127,6 +129,7 @@ const Redaction = () => {
       content,
       wordCount,
       seoScore: seoResult.score,
+      seoFieldsEnabled,
       status: 'En cours',
     });
 
@@ -158,9 +161,18 @@ const Redaction = () => {
   };
 
   const addSecondaryKeyword = () => {
-    if (secondaryKeywordInput.trim() && !secondaryKeywords.includes(secondaryKeywordInput.trim())) {
-      setSecondaryKeywords([...secondaryKeywords, secondaryKeywordInput.trim()]);
+    const newKeyword = secondaryKeywordInput.trim();
+    if (newKeyword && !secondaryKeywords.includes(newKeyword)) {
+      const updatedKeywords = [...secondaryKeywords, newKeyword];
+      setSecondaryKeywords(updatedKeywords);
       setSecondaryKeywordInput('');
+
+      // Appliquer automatiquement le gras au contenu avec le nouveau mot-clé
+      if (content) {
+        const processedContent = applyKeywordBold(content, keyword, updatedKeywords);
+        setContent(processedContent);
+      }
+
       markAsModified();
     }
   };
@@ -191,15 +203,17 @@ const Redaction = () => {
     }
 
     // Trier les mots-clés par longueur décroissante (les plus longs en premier)
-    // Cela permet d'appliquer d'abord les expressions longues comme "hôtel en Bretagne bord de mer"
-    // avant les expressions courtes comme "hôtel en Bretagne"
     allKeywords.sort((a, b) => b.length - a.length);
 
     // Appliquer le gras aux mots-clés du plus long au plus court
     allKeywords.forEach(kw => {
       const escapedKeyword = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Cette regex cherche le mot-clé qui n'est pas déjà dans une balise
-      const regex = new RegExp(`\\b(${escapedKeyword})\\b(?![^<]*>|[^<>]*<\/)`, 'gi');
+      // Regex qui évite les mots déjà dans des balises <strong>
+      // On cherche le mot-clé qui n'est PAS précédé de <strong> et pas suivi de </strong>
+      const regex = new RegExp(
+        `(?<!<strong>)(?<![\\wÀ-ÿ])(${escapedKeyword})(?![\\wÀ-ÿ])(?!</strong>)(?![^<]*>)`,
+        'gi'
+      );
       processedText = processedText.replace(regex, '<strong>$1</strong>');
     });
 
@@ -228,52 +242,6 @@ const Redaction = () => {
     markAsModified();
   };
 
-  // Générer les suggestions automatiquement basées sur le contenu
-  const suggestions = useMemo(() => {
-    if (!content || content.trim().length < 50) {
-      return { titles: [], metas: [] };
-    }
-
-    // Extraire les mots clés principaux du contenu
-    const cleanContent = content.replace(/<[^>]*>/g, ' ').toLowerCase();
-    const words = cleanContent.split(/\s+/).filter(w => w.length > 4);
-    const wordFreq = {};
-
-    words.forEach(word => {
-      wordFreq[word] = (wordFreq[word] || 0) + 1;
-    });
-
-    const sortedWords = Object.entries(wordFreq)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([word]) => word);
-
-    // Extraire le premier paragraphe
-    const firstParagraph = content.split('\n\n')[0].replace(/<[^>]*>/g, ' ').trim();
-    const firstSentence = firstParagraph.split(/[.!?]/)[0];
-
-    // Générer des suggestions de titre (max 65 caractères)
-    const titles = [
-      firstSentence.substring(0, 60) + (firstSentence.length > 60 ? '...' : ''),
-      sortedWords[0] ? `Guide complet : ${sortedWords[0]}`.substring(0, 65) : null,
-      sortedWords[0] ? `Tout savoir sur ${sortedWords[0]} en 2026`.substring(0, 65) : null,
-      sortedWords[0] ? `${sortedWords[0]} : astuces et conseils`.substring(0, 65) : null
-    ].filter(t => t && t.length > 0 && t.length <= 65);
-
-    // Générer des suggestions de meta description (150-160 caractères)
-    const metas = [
-      firstParagraph.substring(0, 155) + (firstParagraph.length > 155 ? '...' : ''),
-      sortedWords[0] && sortedWords[1] ? `Découvrez tout sur ${sortedWords[0]}. Guide pratique et conseils pour ${sortedWords[1]}. ${firstSentence.substring(0, 80)}`.substring(0, 160) : null,
-      `${firstSentence.substring(0, 140)}. En savoir plus...`.substring(0, 160)
-    ].filter(m => m && m.length >= 100 && m.length <= 160);
-
-    return { titles, metas };
-  }, [content]);
-
-  const handleCheck = () => {
-    const ruleResults = checkRules(content, title, metaDescription, keyword);
-    setResults(ruleResults);
-  };
 
   const insertTag = (tag) => {
     const textarea = document.getElementById('content-editor');
@@ -303,8 +271,9 @@ const Redaction = () => {
 
   // Calcul en temps réel du score et des critères SEO
   const seoAnalysis = useMemo(() => {
-    const result = calculateScore(content, title, metaDescription, keyword);
-    const criteria = getAllCriteriaStatus(content, title, metaDescription, keyword);
+    // Le paramètre seoFieldsEnabled est passé pour exclure les critères titre/meta si désactivé
+    const result = calculateScore(content, title, metaDescription, keyword, seoFieldsEnabled);
+    const criteria = getAllCriteriaStatus(content, title, metaDescription, keyword, seoFieldsEnabled);
     const level = getSEOScoreLevel(result.score);
     const validCount = criteria.filter(c => c.isValid).length;
     return {
@@ -316,7 +285,7 @@ const Redaction = () => {
       totalPoints: result.totalPoints,
       maxPoints: result.maxPoints
     };
-  }, [content, title, metaDescription, keyword, calculateScore, getAllCriteriaStatus]);
+  }, [content, title, metaDescription, keyword, seoFieldsEnabled, calculateScore, getAllCriteriaStatus]);
 
   return (
     <div className="redaction-container">
@@ -327,9 +296,6 @@ const Redaction = () => {
           <div className="header-buttons">
             <button onClick={() => handleSave(true)} className="save-button">
               Sauvegarder
-            </button>
-            <button onClick={handleCheck} className="check-button">
-              Vérifier les règles SEO
             </button>
           </div>
         </div>
@@ -452,107 +418,59 @@ const Redaction = () => {
               </button>
             </div>
 
-            {/* Suggestions SEO automatiques */}
-            {(suggestions.titles.length > 0 || suggestions.metas.length > 0) && (
-              <div className="auto-suggestions-section">
-                <h3>Suggestions SEO</h3>
-
-                {/* Titre SEO */}
-                <div className="suggestion-group">
-                  <div className="suggestion-group-header">
-                    <label htmlFor="title">Titre SEO</label>
-                    <span className="char-count-inline">{title.length}/65 car.</span>
-                  </div>
-                  {suggestions.titles.length > 0 && (
-                    <div className="suggestions-chips">
-                      {suggestions.titles.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          className={`suggestion-chip ${title === suggestion ? 'selected' : ''}`}
-                          onClick={() => { setTitle(suggestion); markAsModified(); }}
-                          title={`${suggestion.length} caractères`}
-                        >
-                          {suggestion.substring(0, 40)}{suggestion.length > 40 ? '...' : ''}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+            {/* Bloc Titre SEO et Meta Description (activable/désactivable) */}
+            <div className="seo-fields-section">
+              <div className="seo-fields-header">
+                <h3>Titre SEO & Meta Description</h3>
+                <label className="toggle-switch">
                   <input
-                    type="text"
-                    id="title"
-                    value={title}
-                    onChange={(e) => { setTitle(e.target.value); markAsModified(); }}
-                    placeholder="Sélectionnez une suggestion ou entrez votre titre"
-                    maxLength="70"
+                    type="checkbox"
+                    checked={seoFieldsEnabled}
+                    onChange={(e) => { setSeoFieldsEnabled(e.target.checked); markAsModified(); }}
                   />
-                </div>
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
 
-                {/* Meta Description */}
-                <div className="suggestion-group">
-                  <div className="suggestion-group-header">
-                    <label htmlFor="metaDescription">Meta description</label>
-                    <span className="char-count-inline">{metaDescription.length}/160 car.</span>
-                  </div>
-                  {suggestions.metas.length > 0 && (
-                    <div className="suggestions-metas">
-                      {suggestions.metas.map((suggestion, index) => (
-                        <div
-                          key={index}
-                          className={`suggestion-meta-item ${metaDescription === suggestion ? 'selected' : ''}`}
-                          onClick={() => { setMetaDescription(suggestion); markAsModified(); }}
-                        >
-                          <span className="suggestion-meta-text">{suggestion}</span>
-                          <span className="suggestion-meta-length">{suggestion.length} car.</span>
-                        </div>
-                      ))}
+              {seoFieldsEnabled && (
+                <>
+                  <div className="form-group">
+                    <div className="suggestion-group-header">
+                      <label htmlFor="title">Titre SEO</label>
+                      <span className="char-count-inline">{title.length}/65 car.</span>
                     </div>
-                  )}
-                  <textarea
-                    id="metaDescription"
-                    value={metaDescription}
-                    onChange={(e) => { setMetaDescription(e.target.value); markAsModified(); }}
-                    placeholder="Sélectionnez une suggestion ou entrez votre meta description"
-                    rows="2"
-                    maxLength="170"
-                  />
-                </div>
-              </div>
-            )}
+                    <input
+                      type="text"
+                      id="title"
+                      value={title}
+                      onChange={(e) => { setTitle(e.target.value); markAsModified(); }}
+                      placeholder="Entrez votre titre SEO"
+                      maxLength="70"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <div className="suggestion-group-header">
+                      <label htmlFor="metaDescription">Meta description</label>
+                      <span className="char-count-inline">{metaDescription.length}/160 car.</span>
+                    </div>
+                    <textarea
+                      id="metaDescription"
+                      value={metaDescription}
+                      onChange={(e) => { setMetaDescription(e.target.value); markAsModified(); }}
+                      placeholder="Entrez votre meta description"
+                      rows="2"
+                      maxLength="170"
+                    />
+                  </div>
+                </>
+              )}
 
-            {/* Titre et Meta sans suggestions (quand pas assez de contenu) */}
-            {suggestions.titles.length === 0 && suggestions.metas.length === 0 && (
-              <div className="seo-fields-section">
-                <div className="form-group">
-                  <div className="suggestion-group-header">
-                    <label htmlFor="title">Titre SEO</label>
-                    <span className="char-count-inline">{title.length}/65 car.</span>
-                  </div>
-                  <input
-                    type="text"
-                    id="title"
-                    value={title}
-                    onChange={(e) => { setTitle(e.target.value); markAsModified(); }}
-                    placeholder="Entrez votre titre SEO (les suggestions apparaîtront après 50 caractères de contenu)"
-                    maxLength="70"
-                  />
-                </div>
-                <div className="form-group">
-                  <div className="suggestion-group-header">
-                    <label htmlFor="metaDescription">Meta description</label>
-                    <span className="char-count-inline">{metaDescription.length}/160 car.</span>
-                  </div>
-                  <textarea
-                    id="metaDescription"
-                    value={metaDescription}
-                    onChange={(e) => { setMetaDescription(e.target.value); markAsModified(); }}
-                    placeholder="Entrez votre meta description (les suggestions apparaîtront après 50 caractères de contenu)"
-                    rows="2"
-                    maxLength="170"
-                  />
-                </div>
-              </div>
-            )}
+              {!seoFieldsEnabled && (
+                <p className="seo-fields-disabled-note">
+                  Les champs titre SEO et meta description sont désactivés. Le score SEO ne prendra pas en compte ces critères.
+                </p>
+              )}
+            </div>
 
             <div className="editor-toolbar">
               <button onClick={() => insertTag('bold')} className="toolbar-btn" title="Gras">
@@ -668,34 +586,6 @@ const Redaction = () => {
               )}
             </div>
 
-            <div className="verification-results">
-              <h3>Résultats de la vérification</h3>
-              {results.length === 0 ? (
-                <p className="no-results">
-                  1. Rédigez votre contenu<br/>
-                  2. Cliquez sur "Générer des suggestions"<br/>
-                  3. Choisissez votre mot-clé<br/>
-                  4. Vérifiez les règles SEO
-                </p>
-              ) : (
-                <div className="results-list">
-                  {results.map((result) => (
-                    <div
-                      key={result.ruleId}
-                      className={`result-card ${result.isValid ? 'valid' : 'invalid'}`}
-                    >
-                      <div className="result-icon">
-                        {result.isValid ? '✓' : '✗'}
-                      </div>
-                      <div className="result-content">
-                        <h4>{result.ruleName}</h4>
-                        <p>{result.message}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </main>

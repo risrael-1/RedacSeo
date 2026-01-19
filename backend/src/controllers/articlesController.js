@@ -61,6 +61,7 @@ export const createArticle = async (req, res) => {
       content,
       word_count,
       seo_score,
+      seo_fields_enabled,
       status
     } = req.body;
 
@@ -78,6 +79,7 @@ export const createArticle = async (req, res) => {
           content: content || '',
           word_count: word_count || 0,
           seo_score: seo_score || 0,
+          seo_fields_enabled: seo_fields_enabled !== false, // true par défaut
           status: status || 'Brouillon'
         }
       ])
@@ -114,6 +116,7 @@ export const updateArticle = async (req, res) => {
       content,
       word_count,
       seo_score,
+      seo_fields_enabled,
       status
     } = req.body;
 
@@ -141,6 +144,7 @@ export const updateArticle = async (req, res) => {
         content,
         word_count,
         seo_score,
+        seo_fields_enabled,
         status,
         updated_at: new Date()
       })

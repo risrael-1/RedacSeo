@@ -3,7 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import articlesRoutes from './routes/articlesRoutes.js';
-import rulesRoutes from './routes/rulesRoutes.js';
 import projectsRoutes from './routes/projectsRoutes.js';
 import seoCriteriaRoutes from './routes/seoCriteriaRoutes.js';
 
@@ -40,7 +39,6 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/articles', articlesRoutes);
-app.use('/api/rules', rulesRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/seo-criteria', seoCriteriaRoutes);
 

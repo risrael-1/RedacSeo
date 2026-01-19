@@ -32,15 +32,19 @@ const Dashboard = () => {
   // Recalculer les scores SEO de tous les articles avec les nouveaux critères
   const articlesWithRecalculatedScores = useMemo(() => {
     return articles.map(article => {
+      // Récupérer seo_fields_enabled de l'article (true par défaut)
+      const seoFieldsEnabled = article.seo_fields_enabled !== false;
       const result = calculateScore(
         article.content || '',
         article.title || '',
         article.meta_description || article.metaDescription || '',
-        article.keyword || ''
+        article.keyword || '',
+        seoFieldsEnabled
       );
       return {
         ...article,
-        calculated_seo_score: result.score
+        calculated_seo_score: result.score,
+        seo_fields_enabled: seoFieldsEnabled
       };
     });
   }, [articles, calculateScore]);
@@ -200,11 +204,13 @@ const Dashboard = () => {
               {filteredArticles.map(article => {
                 const seoScore = article.calculated_seo_score || 0;
                 const seoLevel = getSEOScoreLevel(seoScore);
+                const seoFieldsEnabled = article.seo_fields_enabled !== false;
                 const unmetCriteria = getUnmetCriteria(
                   article.content || '',
                   article.title || '',
                   article.meta_description || article.metaDescription || '',
-                  article.keyword || ''
+                  article.keyword || '',
+                  seoFieldsEnabled
                 );
                 const isExpanded = expandedArticleId === article.id;
 

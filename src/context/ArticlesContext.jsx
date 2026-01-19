@@ -55,6 +55,7 @@ export const ArticlesProvider = ({ children }) => {
         content: articleData.content,
         word_count: articleData.wordCount,
         seo_score: articleData.seoScore || 0,
+        seo_fields_enabled: articleData.seoFieldsEnabled !== false,
         status: articleData.status,
       };
 
@@ -89,6 +90,7 @@ export const ArticlesProvider = ({ children }) => {
         secondaryKeywords: savedArticle.secondary_keywords || [],
         wordCount: savedArticle.word_count,
         seoScore: savedArticle.seo_score,
+        seoFieldsEnabled: savedArticle.seo_fields_enabled !== false,
         lastModified: savedArticle.updated_at,
       };
 
@@ -111,6 +113,7 @@ export const ArticlesProvider = ({ children }) => {
         metaDescription: article.meta_description,
         secondaryKeywords: article.secondary_keywords || [],
         wordCount: article.word_count,
+        seoFieldsEnabled: article.seo_fields_enabled !== false,
         lastModified: article.updated_at,
       });
     }
@@ -140,6 +143,7 @@ export const ArticlesProvider = ({ children }) => {
       status: 'Brouillon',
       articleName: '',
       wordCount: 0,
+      seoFieldsEnabled: true,
     });
   };
 
@@ -169,6 +173,7 @@ export const ArticlesProvider = ({ children }) => {
           secondaryKeywords: savedArticle.secondary_keywords || [],
           wordCount: savedArticle.word_count,
           seoScore: savedArticle.seo_score,
+          seoFieldsEnabled: savedArticle.seo_fields_enabled !== false,
           lastModified: savedArticle.updated_at,
         };
         setCurrentArticle(frontendArticle);

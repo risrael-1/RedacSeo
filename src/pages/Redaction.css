@@ -400,6 +400,94 @@
   margin-bottom: 1.5rem;
 }
 
+.seo-fields-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  background: #f8f9fa;
+  position: relative;
+}
+
+.seo-fields-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.seo-fields-disabled-note {
+  color: #666;
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 0;
+  padding: 0.5rem;
+  background: #fff;
+  border-radius: 4px;
+  text-align: center;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  display: none;
+}
+
+.toggle-slider {
+  width: 44px;
+  height: 24px;
+  background: #ccc;
+  border-radius: 12px;
+  position: relative;
+  transition: background 0.3s;
+  flex-shrink: 0;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: #667eea;
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.toggle-label {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  white-space: nowrap;
+  position: relative;
+  z-index: 2;
+  background: #f8f9fa;
+  padding-left: 0.25rem;
+}
+
+.toggle-switch input:checked ~ .toggle-label {
+  color: #667eea;
+}
+
 .seo-fields-section .form-group {
   margin-bottom: 1rem;
 }
