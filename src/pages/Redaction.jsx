@@ -268,7 +268,7 @@ const Redaction = () => {
     };
 
     // Fonction récursive pour nettoyer les éléments avec indentation
-    const cleanElement = (element, indent = 0) => {
+    const cleanElement = (element, indent = 0, isRoot = false) => {
       const lines = [];
       const indentStr = '  '.repeat(indent);
 
@@ -276,16 +276,35 @@ const Redaction = () => {
         if (node.nodeType === Node.TEXT_NODE) {
           const text = node.textContent.trim();
           if (text) {
-            lines.push(text);
+            // Si c'est du texte au niveau racine et qu'on n'a pas encore de titre, c'est le H1
+            if (isRoot && !firstTitleFound) {
+              firstTitleFound = true;
+              lines.push(`<h1 style="text-align: center;">${text}</h1>`);
+            } else {
+              lines.push(text);
+            }
           }
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const tagName = node.tagName.toLowerCase();
-          const childContent = cleanElement(node, indent + 1);
 
           // Ignorer les balises script, style, meta
           if (['script', 'style', 'meta', 'link', 'noscript'].includes(tagName)) {
             return;
           }
+
+          // Pour les balises inline au niveau racine qui enveloppent tout le contenu,
+          // on les "unwrap" pour traiter leur contenu directement
+          const isInlineWrapper = ['strong', 'b', 'em', 'i', 'u', 'span'].includes(tagName);
+          if (isRoot && isInlineWrapper && node.children.length > 0) {
+            // Traiter les enfants directement comme s'ils étaient au niveau racine
+            const unwrappedContent = cleanElement(node, indent, true);
+            if (unwrappedContent.trim()) {
+              lines.push(unwrappedContent);
+            }
+            return;
+          }
+
+          const childContent = cleanElement(node, indent + 1, false);
 
           // Balises à conserver avec leurs attributs
           switch (tagName) {
@@ -310,9 +329,16 @@ const Redaction = () => {
               }
               break;
             }
-            case 'p':
-              lines.push(`${indentStr}<p${getAttributesString(node)}>${childContent}</p>`);
+            case 'p': {
+              // Si c'est le premier élément de contenu au niveau racine, c'est le H1
+              if (!firstTitleFound) {
+                firstTitleFound = true;
+                lines.push(`${indentStr}<h1 style="text-align: center;">${childContent}</h1>`);
+              } else {
+                lines.push(`${indentStr}<p${getAttributesString(node)}>${childContent}</p>`);
+              }
               break;
+            }
             case 'strong':
             case 'b':
               lines.push(`<strong>${childContent}</strong>`);
@@ -393,7 +419,7 @@ const Redaction = () => {
       return lines.join('\n');
     };
 
-    let cleanedHtml = cleanElement(tempDiv);
+    let cleanedHtml = cleanElement(tempDiv, 0, true);
 
     // Nettoyer les lignes vides excessives
     cleanedHtml = cleanedHtml
