@@ -228,6 +228,9 @@ const Redaction = () => {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
 
+    // Flag pour tracker si on a déjà rencontré un titre (le premier sera H1)
+    let firstTitleFound = false;
+
     // Fonction pour extraire les attributs à conserver
     const getAttributesString = (node, allowedAttrs = ['style', 'class', 'href', 'target']) => {
       const attrs = [];
@@ -264,17 +267,20 @@ const Redaction = () => {
       return attrs.length > 0 ? ' ' + attrs.join(' ') : '';
     };
 
-    // Fonction récursive pour nettoyer les éléments
-    const cleanElement = (element) => {
-      let result = '';
+    // Fonction récursive pour nettoyer les éléments avec indentation
+    const cleanElement = (element, indent = 0) => {
+      const lines = [];
+      const indentStr = '  '.repeat(indent);
 
       element.childNodes.forEach(node => {
         if (node.nodeType === Node.TEXT_NODE) {
-          // Texte simple
-          result += node.textContent;
+          const text = node.textContent.trim();
+          if (text) {
+            lines.push(text);
+          }
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const tagName = node.tagName.toLowerCase();
-          const childContent = cleanElement(node);
+          const childContent = cleanElement(node, indent + 1);
 
           // Ignorer les balises script, style, meta
           if (['script', 'style', 'meta', 'link', 'noscript'].includes(tagName)) {
@@ -288,24 +294,37 @@ const Redaction = () => {
             case 'h3':
             case 'h4':
             case 'h5':
-            case 'h6':
-              result += `<${tagName}${getAttributesString(node)}>${childContent}</${tagName}>\n`;
+            case 'h6': {
+              // Premier titre = toujours H1, les autres gardent leur niveau
+              let finalTag = tagName;
+              const attrs = getAttributesString(node);
+              if (!firstTitleFound) {
+                finalTag = 'h1';
+                firstTitleFound = true;
+                // Ajouter text-align: center si pas déjà présent
+                const hasTextAlign = attrs.includes('text-align');
+                const finalAttrs = hasTextAlign ? attrs : (attrs ? attrs.replace('style="', 'style="text-align: center; ') : ' style="text-align: center;"');
+                lines.push(`${indentStr}<${finalTag}${finalAttrs}>${childContent}</${finalTag}>`);
+              } else {
+                lines.push(`${indentStr}<${finalTag}${attrs}>${childContent}</${finalTag}>`);
+              }
               break;
+            }
             case 'p':
-              result += `<p${getAttributesString(node)}>${childContent}</p>\n`;
+              lines.push(`${indentStr}<p${getAttributesString(node)}>${childContent}</p>`);
               break;
             case 'strong':
             case 'b':
-              result += `<strong>${childContent}</strong>`;
+              lines.push(`<strong>${childContent}</strong>`);
               break;
             case 'em':
             case 'i':
-              result += `<em>${childContent}</em>`;
+              lines.push(`<em>${childContent}</em>`);
               break;
             case 'u':
-              result += `<u>${childContent}</u>`;
+              lines.push(`<u>${childContent}</u>`);
               break;
-            case 'a':
+            case 'a': {
               const href = node.getAttribute('href');
               const target = node.getAttribute('target');
               const aClass = node.getAttribute('class');
@@ -313,63 +332,80 @@ const Redaction = () => {
                 let aAttrs = `href="${href}"`;
                 if (target) aAttrs += ` target="${target}"`;
                 if (aClass && aClass.includes('button')) aAttrs += ` class="button"`;
-                result += `<a ${aAttrs}>${childContent}</a>`;
+                lines.push(`<a ${aAttrs}>${childContent}</a>`);
               } else {
-                result += childContent;
+                lines.push(childContent);
               }
               break;
+            }
             case 'ul':
-              result += `<ul${getAttributesString(node)}>\n${childContent}</ul>\n`;
+              lines.push(`${indentStr}<ul${getAttributesString(node)}>`);
+              lines.push(childContent);
+              lines.push(`${indentStr}</ul>`);
               break;
             case 'ol':
-              result += `<ol${getAttributesString(node)}>\n${childContent}</ol>\n`;
+              lines.push(`${indentStr}<ol${getAttributesString(node)}>`);
+              lines.push(childContent);
+              lines.push(`${indentStr}</ol>`);
               break;
             case 'li':
-              result += `<li${getAttributesString(node)}>${childContent}</li>\n`;
+              lines.push(`${'  '.repeat(indent)}<li${getAttributesString(node)}>${childContent}</li>`);
               break;
             case 'br':
-              result += '<br>\n';
+              lines.push('<br>');
               break;
             case 'blockquote':
-              result += `<blockquote${getAttributesString(node)}>${childContent}</blockquote>\n`;
+              lines.push(`${indentStr}<blockquote${getAttributesString(node)}>`);
+              lines.push(`${'  '.repeat(indent + 1)}${childContent}`);
+              lines.push(`${indentStr}</blockquote>`);
               break;
-            case 'div':
+            case 'div': {
               // Pour les div avec classe utile, on les garde
               const divClass = node.getAttribute('class');
               if (divClass && (divClass.includes('faq') || divClass.includes('cta'))) {
-                result += `<div class="${divClass}">\n${childContent}</div>\n`;
+                lines.push(`${indentStr}<div class="${divClass}">`);
+                lines.push(childContent);
+                lines.push(`${indentStr}</div>`);
               } else if (childContent.trim()) {
-                // Sinon on garde juste le contenu
-                result += childContent;
+                lines.push(childContent);
               }
               break;
-            case 'span':
+            }
+            case 'span': {
               // Pour span avec style de couleur, on garde
               const spanStyle = node.getAttribute('style');
               if (spanStyle && spanStyle.includes('color')) {
-                result += `<span style="${spanStyle}">${childContent}</span>`;
+                lines.push(`<span style="${spanStyle}">${childContent}</span>`);
               } else if (childContent.trim()) {
-                result += childContent;
+                lines.push(childContent);
               }
               break;
+            }
             default:
               // Pour les autres balises, on garde juste le contenu
               if (childContent.trim()) {
-                result += childContent;
+                lines.push(childContent);
               }
           }
         }
       });
 
-      return result;
+      return lines.join('\n');
     };
 
     let cleanedHtml = cleanElement(tempDiv);
 
-    // Nettoyer les espaces multiples et les lignes vides excessives
+    // Nettoyer les lignes vides excessives
     cleanedHtml = cleanedHtml
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/^\s+|\s+$/g, '')
+      .split('\n')
+      .filter((line, index, arr) => {
+        // Supprimer les lignes vides consécutives (garder max 1)
+        if (line.trim() === '' && index > 0 && arr[index - 1].trim() === '') {
+          return false;
+        }
+        return true;
+      })
+      .join('\n')
       .trim();
 
     return cleanedHtml;
