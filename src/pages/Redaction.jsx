@@ -27,6 +27,7 @@ const Redaction = () => {
   const [showClearPopup, setShowClearPopup] = useState(false);
   const [articleNameError, setArticleNameError] = useState('');
   const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
+  const [copiedField, setCopiedField] = useState(null);
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
   const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
@@ -269,6 +270,18 @@ const Redaction = () => {
     return content.trim().split(/\s+/).filter(w => w.length > 0).length;
   };
 
+  // Fonction pour copier du texte dans le presse-papier
+  const copyToClipboard = async (text, fieldName) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Erreur lors de la copie:', err);
+    }
+  };
+
   // Calcul en temps réel du score et des critères SEO
   const seoAnalysis = useMemo(() => {
     // Le paramètre seoFieldsEnabled est passé pour exclure les critères titre/meta si désactivé
@@ -437,7 +450,18 @@ const Redaction = () => {
                   <div className="form-group">
                     <div className="suggestion-group-header">
                       <label htmlFor="title">Titre SEO</label>
-                      <span className="char-count-inline">{title.length}/65 car.</span>
+                      <div className="field-actions">
+                        <span className="char-count-inline">{title.length}/65 car.</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(title, 'title')}
+                          className="copy-icon-button"
+                          title="Copier le titre"
+                          disabled={!title}
+                        >
+                          {copiedField === 'title' ? '✓' : '📋'}
+                        </button>
+                      </div>
                     </div>
                     <input
                       type="text"
@@ -451,7 +475,18 @@ const Redaction = () => {
                   <div className="form-group">
                     <div className="suggestion-group-header">
                       <label htmlFor="metaDescription">Meta description</label>
-                      <span className="char-count-inline">{metaDescription.length}/160 car.</span>
+                      <div className="field-actions">
+                        <span className="char-count-inline">{metaDescription.length}/160 car.</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(metaDescription, 'meta')}
+                          className="copy-icon-button"
+                          title="Copier la meta description"
+                          disabled={!metaDescription}
+                        >
+                          {copiedField === 'meta' ? '✓' : '📋'}
+                        </button>
+                      </div>
                     </div>
                     <textarea
                       id="metaDescription"
@@ -490,9 +525,20 @@ const Redaction = () => {
             <div className="form-group">
               <div className="content-label-wrapper">
                 <label htmlFor="content-editor">Contenu de l'article</label>
-                <button onClick={handleClearContent} className="clear-icon-button" title="Effacer le contenu">
-                  🗑️
-                </button>
+                <div className="content-actions">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(content, 'content')}
+                    className="copy-icon-button"
+                    title="Copier le contenu"
+                    disabled={!content}
+                  >
+                    {copiedField === 'content' ? '✓' : '📋'}
+                  </button>
+                  <button onClick={handleClearContent} className="clear-icon-button" title="Effacer le contenu">
+                    🗑️
+                  </button>
+                </div>
               </div>
               <div className="content-info">
                 Collez votre article ici. Les mots-clés seront automatiquement mis en gras.
