@@ -161,9 +161,18 @@ const Redaction = () => {
   };
 
   const addSecondaryKeyword = () => {
-    if (secondaryKeywordInput.trim() && !secondaryKeywords.includes(secondaryKeywordInput.trim())) {
-      setSecondaryKeywords([...secondaryKeywords, secondaryKeywordInput.trim()]);
+    const newKeyword = secondaryKeywordInput.trim();
+    if (newKeyword && !secondaryKeywords.includes(newKeyword)) {
+      const updatedKeywords = [...secondaryKeywords, newKeyword];
+      setSecondaryKeywords(updatedKeywords);
       setSecondaryKeywordInput('');
+
+      // Appliquer automatiquement le gras au contenu avec le nouveau mot-clé
+      if (content) {
+        const processedContent = applyKeywordBold(content, keyword, updatedKeywords);
+        setContent(processedContent);
+      }
+
       markAsModified();
     }
   };
@@ -194,15 +203,17 @@ const Redaction = () => {
     }
 
     // Trier les mots-clés par longueur décroissante (les plus longs en premier)
-    // Cela permet d'appliquer d'abord les expressions longues comme "hôtel en Bretagne bord de mer"
-    // avant les expressions courtes comme "hôtel en Bretagne"
     allKeywords.sort((a, b) => b.length - a.length);
 
     // Appliquer le gras aux mots-clés du plus long au plus court
     allKeywords.forEach(kw => {
       const escapedKeyword = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Cette regex cherche le mot-clé qui n'est pas déjà dans une balise
-      const regex = new RegExp(`\\b(${escapedKeyword})\\b(?![^<]*>|[^<>]*<\/)`, 'gi');
+      // Regex qui évite les mots déjà dans des balises <strong>
+      // On cherche le mot-clé qui n'est PAS précédé de <strong> et pas suivi de </strong>
+      const regex = new RegExp(
+        `(?<!<strong>)(?<![\\wÀ-ÿ])(${escapedKeyword})(?![\\wÀ-ÿ])(?!</strong>)(?![^<]*>)`,
+        'gi'
+      );
       processedText = processedText.replace(regex, '<strong>$1</strong>');
     });
 
