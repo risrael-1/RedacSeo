@@ -407,9 +407,110 @@
   font-size: 0.9rem;
 }
 
-.project-select-field {
-  cursor: pointer;
+/* Project Searchable Select */
+.project-select-container {
+  position: relative;
+}
+
+.project-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.project-search-input {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
   background-color: white;
+}
+
+.project-search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.project-search-input::placeholder {
+  color: #999;
+}
+
+.project-clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #e0e0e0;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 16px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.project-clear-btn:hover {
+  background: #ff6b6b;
+  color: white;
+}
+
+.project-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.2);
+}
+
+.project-dropdown-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.project-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.project-dropdown-item:hover {
+  background: linear-gradient(135deg, #f0f4ff 0%, #e8f4f8 100%);
+}
+
+.project-dropdown-item.selected {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+}
+
+.project-dropdown-item.selected:hover {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+}
+
+.project-dropdown-item.no-results {
+  color: #999;
+  font-style: italic;
+  cursor: default;
+}
+
+.project-dropdown-item.no-results:hover {
+  background: white;
 }
 
 .char-count {

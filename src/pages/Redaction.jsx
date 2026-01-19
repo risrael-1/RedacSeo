@@ -23,6 +23,8 @@ const Redaction = () => {
   const [content, setContent] = useState('');
   const [articleName, setArticleName] = useState('');
   const [projectId, setProjectId] = useState(null);
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showSavePopup, setShowSavePopup] = useState(false);
   const [showClearPopup, setShowClearPopup] = useState(false);
   const [articleNameError, setArticleNameError] = useState('');
@@ -789,21 +791,84 @@ const Redaction = () => {
             </div>
 
             {projects.length > 0 && (
-              <div className="form-group">
-                <label htmlFor="projectSelect">Projet associé</label>
-                <select
-                  id="projectSelect"
-                  value={projectId || ''}
-                  onChange={(e) => { setProjectId(e.target.value || null); markAsModified(); }}
-                  className="project-select-field"
-                >
-                  <option value="">Aucun projet</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="form-group project-select-container">
+                <label htmlFor="projectSearch">Projet associé</label>
+                <div className="project-search-wrapper">
+                  <input
+                    type="text"
+                    id="projectSearch"
+                    placeholder="Rechercher un projet..."
+                    value={showProjectDropdown ? projectSearchQuery : (projects.find(p => p.id === projectId)?.name || '')}
+                    onChange={(e) => {
+                      setProjectSearchQuery(e.target.value);
+                      setShowProjectDropdown(true);
+                    }}
+                    onFocus={() => {
+                      setShowProjectDropdown(true);
+                      setProjectSearchQuery('');
+                    }}
+                    onBlur={() => {
+                      // Délai pour permettre le clic sur une option
+                      setTimeout(() => setShowProjectDropdown(false), 200);
+                    }}
+                    className="project-search-input"
+                    autoComplete="off"
+                  />
+                  {projectId && (
+                    <button
+                      type="button"
+                      className="project-clear-btn"
+                      onClick={() => {
+                        setProjectId(null);
+                        setProjectSearchQuery('');
+                        markAsModified();
+                      }}
+                      title="Retirer le projet"
+                    >
+                      ×
+                    </button>
+                  )}
+                  {showProjectDropdown && (
+                    <div className="project-dropdown">
+                      <div
+                        className={`project-dropdown-item ${!projectId ? 'selected' : ''}`}
+                        onMouseDown={() => {
+                          setProjectId(null);
+                          setProjectSearchQuery('');
+                          setShowProjectDropdown(false);
+                          markAsModified();
+                        }}
+                      >
+                        Aucun projet
+                      </div>
+                      {projects
+                        .filter(project =>
+                          project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+                        )
+                        .map((project) => (
+                          <div
+                            key={project.id}
+                            className={`project-dropdown-item ${projectId === project.id ? 'selected' : ''}`}
+                            onMouseDown={() => {
+                              setProjectId(project.id);
+                              setProjectSearchQuery('');
+                              setShowProjectDropdown(false);
+                              markAsModified();
+                            }}
+                          >
+                            {project.name}
+                          </div>
+                        ))}
+                      {projects.filter(project =>
+                        project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+                      ).length === 0 && projectSearchQuery && (
+                        <div className="project-dropdown-item no-results">
+                          Aucun projet trouvé
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
