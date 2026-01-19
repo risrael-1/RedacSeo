@@ -30,8 +30,9 @@ const Projects = () => {
   );
 
   // Obtenir les articles du projet sélectionné
+  // Note: les articles sont stockés avec project_id (format API)
   const projectArticles = selectedProject
-    ? articles.filter(article => article.projectId === selectedProject.id)
+    ? articles.filter(article => article.project_id === selectedProject.id)
     : [];
 
   // Naviguer vers un article
@@ -253,17 +254,17 @@ const Projects = () => {
                         onClick={() => handleArticleClick(article.id)}
                       >
                         <div className="project-article-info">
-                          <h4 className="project-article-name">{article.articleName}</h4>
+                          <h4 className="project-article-name">{article.article_name}</h4>
                           {article.keyword && (
                             <span className="project-article-keyword">{article.keyword}</span>
                           )}
                         </div>
                         <div className="project-article-meta">
                           <span className="project-article-words">
-                            {article.wordCount || 0} mots
+                            {article.word_count || 0} mots
                           </span>
-                          <span className={`project-article-score ${article.seoScore >= 80 ? 'good' : article.seoScore >= 50 ? 'medium' : 'low'}`}>
-                            {article.seoScore || 0}%
+                          <span className={`project-article-score ${(article.seo_score || 0) >= 80 ? 'good' : (article.seo_score || 0) >= 50 ? 'medium' : 'low'}`}>
+                            {article.seo_score || 0}%
                           </span>
                         </div>
                       </div>
