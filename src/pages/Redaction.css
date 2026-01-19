@@ -306,6 +306,41 @@
   padding: 0;
 }
 
+/* Support des boutons/liens stylés */
+.html-preview a.button,
+.html-preview a[class*="button"] {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white !important;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  margin: 0.5rem 0;
+  transition: all 0.2s;
+}
+
+.html-preview a.button:hover,
+.html-preview a[class*="button"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Support des div FAQ */
+.html-preview .faq-item,
+.html-preview div[class*="faq"] {
+  background: #f8f9fc;
+  border-left: 4px solid #667eea;
+  padding: 1rem 1.5rem;
+  margin: 1rem 0;
+  border-radius: 0 8px 8px 0;
+}
+
+/* Support des spans de couleur */
+.html-preview span[style*="color"] {
+  /* Les couleurs inline sont déjà appliquées via style */
+}
+
 .form-section {
   display: flex;
   flex-direction: column;

@@ -222,11 +222,47 @@ const Redaction = () => {
     return processedText;
   };
 
-  // Fonction pour nettoyer le HTML collé et garder uniquement les balises utiles
+  // Fonction pour nettoyer le HTML collé et garder les balises et attributs utiles
   const cleanPastedHtml = (html) => {
     // Créer un élément temporaire pour parser le HTML
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
+
+    // Fonction pour extraire les attributs à conserver
+    const getAttributesString = (node, allowedAttrs = ['style', 'class', 'href', 'target']) => {
+      const attrs = [];
+      allowedAttrs.forEach(attrName => {
+        const attrValue = node.getAttribute(attrName);
+        if (attrValue) {
+          // Pour style, on garde seulement certaines propriétés utiles
+          if (attrName === 'style') {
+            const allowedStyles = ['text-align', 'color', 'font-weight', 'font-style'];
+            const styleProps = attrValue.split(';')
+              .map(s => s.trim())
+              .filter(s => {
+                const propName = s.split(':')[0]?.trim().toLowerCase();
+                return allowedStyles.some(allowed => propName === allowed);
+              })
+              .join('; ');
+            if (styleProps) {
+              attrs.push(`style="${styleProps}"`);
+            }
+          } else if (attrName === 'class') {
+            // Garder les classes utiles (button, faq-item, etc.)
+            const usefulClasses = ['button', 'faq-item', 'cta', 'highlight'];
+            const classes = attrValue.split(' ')
+              .filter(c => usefulClasses.some(uc => c.includes(uc)))
+              .join(' ');
+            if (classes) {
+              attrs.push(`class="${classes}"`);
+            }
+          } else {
+            attrs.push(`${attrName}="${attrValue}"`);
+          }
+        }
+      });
+      return attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+    };
 
     // Fonction récursive pour nettoyer les éléments
     const cleanElement = (element) => {
@@ -240,7 +276,12 @@ const Redaction = () => {
           const tagName = node.tagName.toLowerCase();
           const childContent = cleanElement(node);
 
-          // Balises à conserver
+          // Ignorer les balises script, style, meta
+          if (['script', 'style', 'meta', 'link', 'noscript'].includes(tagName)) {
+            return;
+          }
+
+          // Balises à conserver avec leurs attributs
           switch (tagName) {
             case 'h1':
             case 'h2':
@@ -248,10 +289,10 @@ const Redaction = () => {
             case 'h4':
             case 'h5':
             case 'h6':
-              result += `<${tagName}>${childContent}</${tagName}>\n`;
+              result += `<${tagName}${getAttributesString(node)}>${childContent}</${tagName}>\n`;
               break;
             case 'p':
-              result += `<p>${childContent}</p>\n`;
+              result += `<p${getAttributesString(node)}>${childContent}</p>\n`;
               break;
             case 'strong':
             case 'b':
@@ -266,40 +307,56 @@ const Redaction = () => {
               break;
             case 'a':
               const href = node.getAttribute('href');
+              const target = node.getAttribute('target');
+              const aClass = node.getAttribute('class');
               if (href) {
-                result += `<a href="${href}">${childContent}</a>`;
+                let aAttrs = `href="${href}"`;
+                if (target) aAttrs += ` target="${target}"`;
+                if (aClass && aClass.includes('button')) aAttrs += ` class="button"`;
+                result += `<a ${aAttrs}>${childContent}</a>`;
               } else {
                 result += childContent;
               }
               break;
             case 'ul':
-              result += `<ul>\n${childContent}</ul>\n`;
+              result += `<ul${getAttributesString(node)}>\n${childContent}</ul>\n`;
               break;
             case 'ol':
-              result += `<ol>\n${childContent}</ol>\n`;
+              result += `<ol${getAttributesString(node)}>\n${childContent}</ol>\n`;
               break;
             case 'li':
-              result += `<li>${childContent}</li>\n`;
+              result += `<li${getAttributesString(node)}>${childContent}</li>\n`;
               break;
             case 'br':
-              result += '<br>';
+              result += '<br>\n';
               break;
             case 'blockquote':
-              result += `<blockquote>${childContent}</blockquote>\n`;
+              result += `<blockquote${getAttributesString(node)}>${childContent}</blockquote>\n`;
               break;
             case 'div':
+              // Pour les div avec classe utile, on les garde
+              const divClass = node.getAttribute('class');
+              if (divClass && (divClass.includes('faq') || divClass.includes('cta'))) {
+                result += `<div class="${divClass}">\n${childContent}</div>\n`;
+              } else if (childContent.trim()) {
+                // Sinon on garde juste le contenu
+                result += childContent;
+              }
+              break;
             case 'span':
-            case 'section':
-            case 'article':
-              // Pour ces conteneurs, on garde juste le contenu
-              // Mais on vérifie si c'est un bloc qui devrait être un paragraphe
-              if (childContent.trim()) {
+              // Pour span avec style de couleur, on garde
+              const spanStyle = node.getAttribute('style');
+              if (spanStyle && spanStyle.includes('color')) {
+                result += `<span style="${spanStyle}">${childContent}</span>`;
+              } else if (childContent.trim()) {
                 result += childContent;
               }
               break;
             default:
               // Pour les autres balises, on garde juste le contenu
-              result += childContent;
+              if (childContent.trim()) {
+                result += childContent;
+              }
           }
         }
       });
