@@ -222,14 +222,123 @@ const Redaction = () => {
     return processedText;
   };
 
+  // Fonction pour nettoyer le HTML collé et garder uniquement les balises utiles
+  const cleanPastedHtml = (html) => {
+    // Créer un élément temporaire pour parser le HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+
+    // Fonction récursive pour nettoyer les éléments
+    const cleanElement = (element) => {
+      let result = '';
+
+      element.childNodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          // Texte simple
+          result += node.textContent;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const tagName = node.tagName.toLowerCase();
+          const childContent = cleanElement(node);
+
+          // Balises à conserver
+          switch (tagName) {
+            case 'h1':
+            case 'h2':
+            case 'h3':
+            case 'h4':
+            case 'h5':
+            case 'h6':
+              result += `<${tagName}>${childContent}</${tagName}>\n`;
+              break;
+            case 'p':
+              result += `<p>${childContent}</p>\n`;
+              break;
+            case 'strong':
+            case 'b':
+              result += `<strong>${childContent}</strong>`;
+              break;
+            case 'em':
+            case 'i':
+              result += `<em>${childContent}</em>`;
+              break;
+            case 'u':
+              result += `<u>${childContent}</u>`;
+              break;
+            case 'a':
+              const href = node.getAttribute('href');
+              if (href) {
+                result += `<a href="${href}">${childContent}</a>`;
+              } else {
+                result += childContent;
+              }
+              break;
+            case 'ul':
+              result += `<ul>\n${childContent}</ul>\n`;
+              break;
+            case 'ol':
+              result += `<ol>\n${childContent}</ol>\n`;
+              break;
+            case 'li':
+              result += `<li>${childContent}</li>\n`;
+              break;
+            case 'br':
+              result += '<br>';
+              break;
+            case 'blockquote':
+              result += `<blockquote>${childContent}</blockquote>\n`;
+              break;
+            case 'div':
+            case 'span':
+            case 'section':
+            case 'article':
+              // Pour ces conteneurs, on garde juste le contenu
+              // Mais on vérifie si c'est un bloc qui devrait être un paragraphe
+              if (childContent.trim()) {
+                result += childContent;
+              }
+              break;
+            default:
+              // Pour les autres balises, on garde juste le contenu
+              result += childContent;
+          }
+        }
+      });
+
+      return result;
+    };
+
+    let cleanedHtml = cleanElement(tempDiv);
+
+    // Nettoyer les espaces multiples et les lignes vides excessives
+    cleanedHtml = cleanedHtml
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/^\s+|\s+$/g, '')
+      .trim();
+
+    return cleanedHtml;
+  };
+
   const handlePaste = (e) => {
     e.preventDefault();
-    const pastedText = e.clipboardData.getData('text');
+
+    // Essayer de récupérer le contenu HTML d'abord
+    const htmlContent = e.clipboardData.getData('text/html');
+    const textContent = e.clipboardData.getData('text/plain');
+
+    let pastedContent;
+
+    if (htmlContent) {
+      // Si on a du HTML, le nettoyer pour garder la mise en forme
+      pastedContent = cleanPastedHtml(htmlContent);
+    } else {
+      // Sinon, utiliser le texte brut
+      pastedContent = textContent;
+    }
 
     const textarea = document.getElementById('content-editor');
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const newContent = content.substring(0, start) + pastedText + content.substring(end);
+    const newContent = content.substring(0, start) + pastedContent + content.substring(end);
     setContent(newContent);
     markAsModified();
   };
