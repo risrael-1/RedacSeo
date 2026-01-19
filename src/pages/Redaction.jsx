@@ -231,6 +231,45 @@ const Redaction = () => {
     // Flag pour tracker si on a déjà rencontré un titre (le premier sera H1)
     let firstTitleFound = false;
 
+    // Fonction pour détecter si un texte ressemble à un titre H2 (titre de section)
+    const isH2Title = (text) => {
+      const trimmed = text.trim();
+      // Critères pour un H2 :
+      // - Entre 15 et 100 caractères
+      // - Ne finit pas par un point (sauf ...)
+      // - Contient souvent ":"
+      // - Pas trop de mots (max ~15)
+      // - Commence par une majuscule
+      if (trimmed.length < 15 || trimmed.length > 100) return false;
+      if (trimmed.endsWith('.') && !trimmed.endsWith('...')) return false;
+      if (trimmed.endsWith(',') || trimmed.endsWith(';')) return false;
+
+      const wordCount = trimmed.split(/\s+/).length;
+      if (wordCount > 15) return false;
+
+      const startsWithCapital = /^[A-ZÀ-Ü]/.test(trimmed);
+      const hasColon = trimmed.includes(':');
+
+      // Si contient ":" c'est très probablement un titre
+      if (startsWithCapital && hasColon && wordCount <= 12) return true;
+
+      // Sinon, titre court avec majuscule
+      return startsWithCapital && wordCount <= 8;
+    };
+
+    // Fonction pour détecter si un texte ressemble à un titre H3 (FAQ, sous-section)
+    const isH3Title = (text) => {
+      const trimmed = text.trim();
+      // Critères pour un H3 :
+      // - Questions (finit par ?)
+      // - Commence par FAQ, Q:, Question
+      // - Ligne courte commençant par un tiret ou numéro
+      if (trimmed.endsWith('?') && trimmed.length < 150) return true;
+      if (/^(FAQ|Q:|Question)/i.test(trimmed)) return true;
+      if (/^FAQ\s*[-–—:]/i.test(trimmed)) return true;
+      return false;
+    };
+
     // Fonction pour extraire les attributs à conserver
     const getAttributesString = (node, allowedAttrs = ['style', 'class', 'href', 'target']) => {
       const attrs = [];
@@ -330,11 +369,24 @@ const Redaction = () => {
               break;
             }
             case 'p': {
-              // Si c'est le premier élément de contenu au niveau racine, c'est le H1
+              // Extraire le texte brut pour analyse
+              const plainText = node.textContent.trim();
+
+              // Si c'est le premier élément de contenu, c'est le H1
               if (!firstTitleFound) {
                 firstTitleFound = true;
                 lines.push(`${indentStr}<h1 style="text-align: center;">${childContent}</h1>`);
-              } else {
+              }
+              // Détecter les H3 (FAQ, questions)
+              else if (isH3Title(plainText)) {
+                lines.push(`${indentStr}<h3>${childContent}</h3>`);
+              }
+              // Détecter les H2 (titres de section)
+              else if (isH2Title(plainText)) {
+                lines.push(`${indentStr}<h2>${childContent}</h2>`);
+              }
+              // Sinon c'est un paragraphe normal
+              else {
                 lines.push(`${indentStr}<p${getAttributesString(node)}>${childContent}</p>`);
               }
               break;
