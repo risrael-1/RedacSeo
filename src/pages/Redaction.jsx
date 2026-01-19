@@ -231,30 +231,59 @@ const Redaction = () => {
     // Flag pour tracker si on a déjà rencontré un titre (le premier sera H1)
     let firstTitleFound = false;
 
+    // Fonction pour vérifier si un paragraphe est principalement en gras (titre potentiel)
+    const isParagraphMostlyBold = (node) => {
+      const fullText = node.textContent.trim();
+      if (!fullText) return false;
+
+      // Chercher le texte en gras (font-weight:700 ou balises strong/b)
+      let boldText = '';
+      const walkNode = (n) => {
+        if (n.nodeType === Node.TEXT_NODE) {
+          const parent = n.parentElement;
+          if (parent) {
+            const style = parent.getAttribute('style') || '';
+            const tagName = parent.tagName?.toLowerCase();
+            if (style.includes('font-weight:700') || style.includes('font-weight: 700') ||
+                tagName === 'strong' || tagName === 'b') {
+              boldText += n.textContent;
+            }
+          }
+        } else if (n.nodeType === Node.ELEMENT_NODE) {
+          const style = n.getAttribute('style') || '';
+          const tagName = n.tagName?.toLowerCase();
+          if (style.includes('font-weight:700') || style.includes('font-weight: 700') ||
+              tagName === 'strong' || tagName === 'b') {
+            boldText += n.textContent;
+          } else {
+            n.childNodes.forEach(child => walkNode(child));
+          }
+        }
+      };
+      node.childNodes.forEach(child => walkNode(child));
+
+      // Si plus de 80% du texte est en gras, c'est probablement un titre
+      const boldRatio = boldText.trim().length / fullText.length;
+      return boldRatio > 0.8;
+    };
+
     // Fonction pour détecter si un texte ressemble à un titre H2 (titre de section)
-    const isH2Title = (text) => {
+    const isH2Title = (text, node) => {
       const trimmed = text.trim();
       // Critères pour un H2 :
-      // - Entre 15 et 100 caractères
+      // - Entre 15 et 120 caractères
       // - Ne finit pas par un point (sauf ...)
-      // - Contient souvent ":"
       // - Pas trop de mots (max ~15)
-      // - Commence par une majuscule
-      if (trimmed.length < 15 || trimmed.length > 100) return false;
+      // - Doit être principalement en gras
+      if (trimmed.length < 15 || trimmed.length > 120) return false;
       if (trimmed.endsWith('.') && !trimmed.endsWith('...')) return false;
       if (trimmed.endsWith(',') || trimmed.endsWith(';')) return false;
 
       const wordCount = trimmed.split(/\s+/).length;
       if (wordCount > 15) return false;
 
-      const startsWithCapital = /^[A-ZÀ-Ü]/.test(trimmed);
-      const hasColon = trimmed.includes(':');
-
-      // Si contient ":" c'est très probablement un titre
-      if (startsWithCapital && hasColon && wordCount <= 12) return true;
-
-      // Sinon, titre court avec majuscule
-      return startsWithCapital && wordCount <= 8;
+      // Vérifier si le paragraphe est principalement en gras
+      return isParagraphMostlyBold(node);
     };
 
     // Fonction pour détecter si un texte ressemble à un titre H3 (FAQ, sous-section)
@@ -262,10 +291,8 @@ const Redaction = () => {
       const trimmed = text.trim();
       // Critères pour un H3 :
       // - Questions (finit par ?)
-      // - Commence par FAQ, Q:, Question
-      // - Ligne courte commençant par un tiret ou numéro
+      // - Commence par FAQ
       if (trimmed.endsWith('?') && trimmed.length < 150) return true;
-      if (/^(FAQ|Q:|Question)/i.test(trimmed)) return true;
       if (/^FAQ\s*[-–—:]/i.test(trimmed)) return true;
       return false;
     };
@@ -355,35 +382,40 @@ const Redaction = () => {
             case 'h6': {
               // Premier titre = toujours H1, les autres gardent leur niveau
               let finalTag = tagName;
-              const attrs = getAttributesString(node);
+              // Utiliser le texte propre sans les spans pour les titres
+              const cleanText = node.textContent.trim();
               if (!firstTitleFound) {
                 finalTag = 'h1';
                 firstTitleFound = true;
-                // Ajouter text-align: center si pas déjà présent
-                const hasTextAlign = attrs.includes('text-align');
-                const finalAttrs = hasTextAlign ? attrs : (attrs ? attrs.replace('style="', 'style="text-align: center; ') : ' style="text-align: center;"');
-                lines.push(`${indentStr}<${finalTag}${finalAttrs}>${childContent}</${finalTag}>`);
+                lines.push(`${indentStr}<${finalTag} style="text-align: center;">${cleanText}</${finalTag}>`);
               } else {
-                lines.push(`${indentStr}<${finalTag}${attrs}>${childContent}</${finalTag}>`);
+                // H3 centré (pour FAQ), H2 normal
+                if (finalTag === 'h3') {
+                  lines.push(`${indentStr}<${finalTag} style="text-align: center;">${cleanText}</${finalTag}>`);
+                } else {
+                  lines.push(`${indentStr}<${finalTag}>${cleanText}</${finalTag}>`);
+                }
               }
               break;
             }
             case 'p': {
               // Extraire le texte brut pour analyse
               const plainText = node.textContent.trim();
+              // Pour les titres, on utilise juste le texte sans les spans
+              const cleanTextContent = plainText;
 
               // Si c'est le premier élément de contenu, c'est le H1
               if (!firstTitleFound) {
                 firstTitleFound = true;
-                lines.push(`${indentStr}<h1 style="text-align: center;">${childContent}</h1>`);
+                lines.push(`${indentStr}<h1 style="text-align: center;">${cleanTextContent}</h1>`);
               }
-              // Détecter les H3 (FAQ, questions)
+              // Détecter les H3 (FAQ, questions) - centré
               else if (isH3Title(plainText)) {
-                lines.push(`${indentStr}<h3>${childContent}</h3>`);
+                lines.push(`${indentStr}<h3 style="text-align: center;">${cleanTextContent}</h3>`);
               }
-              // Détecter les H2 (titres de section)
-              else if (isH2Title(plainText)) {
-                lines.push(`${indentStr}<h2>${childContent}</h2>`);
+              // Détecter les H2 (titres de section basé sur le gras)
+              else if (isH2Title(plainText, node)) {
+                lines.push(`${indentStr}<h2>${cleanTextContent}</h2>`);
               }
               // Sinon c'est un paragraphe normal
               else {
