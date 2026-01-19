@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useRules } from '../context/RulesContext';
 import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
 import { useSeoCriteria } from '../context/SeoCriteriaContext';
@@ -22,14 +21,12 @@ const Redaction = () => {
   const [secondaryKeywords, setSecondaryKeywords] = useState([]);
   const [secondaryKeywordInput, setSecondaryKeywordInput] = useState('');
   const [content, setContent] = useState('');
-  const [results, setResults] = useState([]);
   const [articleName, setArticleName] = useState('');
   const [projectId, setProjectId] = useState(null);
   const [showSavePopup, setShowSavePopup] = useState(false);
   const [showClearPopup, setShowClearPopup] = useState(false);
   const [articleNameError, setArticleNameError] = useState('');
   const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
-  const { checkRules } = useRules();
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
   const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
@@ -235,11 +232,6 @@ const Redaction = () => {
   };
 
 
-  const handleCheck = () => {
-    const ruleResults = checkRules(content, title, metaDescription, keyword);
-    setResults(ruleResults);
-  };
-
   const insertTag = (tag) => {
     const textarea = document.getElementById('content-editor');
     const start = textarea.selectionStart;
@@ -293,9 +285,6 @@ const Redaction = () => {
           <div className="header-buttons">
             <button onClick={() => handleSave(true)} className="save-button">
               Sauvegarder
-            </button>
-            <button onClick={handleCheck} className="check-button">
-              Vérifier les règles SEO
             </button>
           </div>
         </div>
@@ -586,34 +575,6 @@ const Redaction = () => {
               )}
             </div>
 
-            <div className="verification-results">
-              <h3>Résultats de la vérification</h3>
-              {results.length === 0 ? (
-                <p className="no-results">
-                  1. Rédigez votre contenu<br/>
-                  2. Cliquez sur "Générer des suggestions"<br/>
-                  3. Choisissez votre mot-clé<br/>
-                  4. Vérifiez les règles SEO
-                </p>
-              ) : (
-                <div className="results-list">
-                  {results.map((result) => (
-                    <div
-                      key={result.ruleId}
-                      className={`result-card ${result.isValid ? 'valid' : 'invalid'}`}
-                    >
-                      <div className="result-icon">
-                        {result.isValid ? '✓' : '✗'}
-                      </div>
-                      <div className="result-content">
-                        <h4>{result.ruleName}</h4>
-                        <p>{result.message}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </main>
