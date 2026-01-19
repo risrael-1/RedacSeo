@@ -16,7 +16,6 @@ const Regles = () => {
     initializeCriteria
   } = useSeoCriteria();
 
-  const [showSeoCriteria, setShowSeoCriteria] = useState(true);
   const [showAddCriterionForm, setShowAddCriterionForm] = useState(false);
   const [editingCriterion, setEditingCriterion] = useState(null);
 
@@ -150,224 +149,253 @@ const Regles = () => {
     <div className="regles-container">
       <Navbar />
       <main className="regles-main">
-        <div className="regles-header">
-          <h2>Configuration des Critères SEO</h2>
+        {/* Header avec stats */}
+        <div className="regles-page-header">
+          <div className="header-content">
+            <h2>Critères SEO</h2>
+            <p className="header-subtitle">
+              Configurez les critères d'évaluation de vos articles
+            </p>
+          </div>
+          <div className="header-stats">
+            <div className="stat-card">
+              <span className="stat-value">{criteria.length}</span>
+              <span className="stat-label">Critères</span>
+            </div>
+            <div className="stat-card highlight">
+              <span className="stat-value">{totalPoints}</span>
+              <span className="stat-label">Points max</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-value">{criteria.filter(c => c.enabled).length}</span>
+              <span className="stat-label">Actifs</span>
+            </div>
+          </div>
         </div>
 
-        {/* SEO Criteria Section */}
-        <div className="seo-score-info">
-          <div className="seo-score-header" onClick={() => setShowSeoCriteria(!showSeoCriteria)}>
-            <div className="seo-score-header-content">
-              <h3>📊 Critères de Score SEO ({totalPoints} points max)</h3>
-              <p className="info-subtitle-inline">
-                {isDefault
-                  ? 'Critères par défaut - Cliquez sur "Personnaliser" pour les modifier'
-                  : 'Critères personnalisés - Modifiez les points et paramètres selon vos besoins'}
-              </p>
-            </div>
-            <button className="toggle-criteria-btn">
-              {showSeoCriteria ? '▲' : '▼'}
+        {/* Actions */}
+        <div className="criteria-actions-bar">
+          {isDefault ? (
+            <button onClick={handleInitializeCriteria} className="action-btn primary">
+              <span className="btn-icon">✨</span>
+              Personnaliser les critères
             </button>
-          </div>
-
-          {showSeoCriteria && (
+          ) : (
             <>
-              <div className="criteria-actions">
-                {isDefault ? (
-                  <button onClick={handleInitializeCriteria} className="customize-btn">
-                    Personnaliser les critères
-                  </button>
-                ) : (
-                  <>
-                    <button onClick={() => setShowAddCriterionForm(!showAddCriterionForm)} className="add-criterion-btn">
-                      {showAddCriterionForm ? 'Annuler' : '+ Ajouter un critère'}
-                    </button>
-                    <button onClick={handleResetToDefault} className="reset-btn">
-                      Réinitialiser par défaut
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Add/Edit Criterion Form */}
-              {showAddCriterionForm && (
-                <div className="add-criterion-form">
-                  <h4>{editingCriterion ? 'Modifier le critère' : 'Nouveau critère SEO'}</h4>
-                  <div className="criterion-form-grid">
-                    <div className="form-group">
-                      <label>Label du critère *</label>
-                      <input
-                        type="text"
-                        value={criterionFormData.label}
-                        onChange={(e) => setCriterionFormData({ ...criterionFormData, label: e.target.value })}
-                        placeholder="Ex: Longueur du contenu"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Type de vérification *</label>
-                      <select
-                        value={criterionFormData.check_type}
-                        onChange={(e) => setCriterionFormData({ ...criterionFormData, check_type: e.target.value })}
-                      >
-                        {checkTypes.map(ct => (
-                          <option key={ct.value} value={ct.value}>{ct.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="form-group full-width">
-                      <label>Description</label>
-                      <textarea
-                        value={criterionFormData.description}
-                        onChange={(e) => setCriterionFormData({ ...criterionFormData, description: e.target.value })}
-                        placeholder="Décrivez ce que ce critère vérifie"
-                        rows="2"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Icône</label>
-                      <div className="icon-selector">
-                        {icons.map(icon => (
-                          <button
-                            key={icon}
-                            type="button"
-                            className={`icon-btn ${criterionFormData.icon === icon ? 'selected' : ''}`}
-                            onClick={() => setCriterionFormData({ ...criterionFormData, icon })}
-                          >
-                            {icon}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label>Points maximum</label>
-                      <input
-                        type="number"
-                        value={criterionFormData.max_points}
-                        onChange={(e) => setCriterionFormData({ ...criterionFormData, max_points: e.target.value })}
-                        min="1"
-                        max="20"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Valeur minimum</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={criterionFormData.min_value}
-                        onChange={(e) => setCriterionFormData({ ...criterionFormData, min_value: e.target.value })}
-                        placeholder="Ex: 300"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Valeur maximum</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={criterionFormData.max_value}
-                        onChange={(e) => setCriterionFormData({ ...criterionFormData, max_value: e.target.value })}
-                        placeholder="Ex: 160"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Valeur cible (bonus)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={criterionFormData.target_value}
-                        onChange={(e) => setCriterionFormData({ ...criterionFormData, target_value: e.target.value })}
-                        placeholder="Ex: 800"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-actions">
-                    <button onClick={handleAddCriterion} className="save-button">
-                      {editingCriterion ? 'Mettre à jour' : 'Ajouter'}
-                    </button>
-                    <button onClick={resetCriterionForm} className="cancel-button">
-                      Annuler
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Criteria Grid */}
-              <div className="score-criteria-grid">
-                {criteriaLoading ? (
-                  <p className="loading-text">Chargement des critères...</p>
-                ) : (
-                  criteria.map((criterion) => (
-                    <div
-                      key={criterion.criterion_id}
-                      className={`score-criterion-card ${!criterion.enabled ? 'disabled' : ''}`}
-                    >
-                      <div className="criterion-card-header">
-                        <div className="criterion-icon">{criterion.icon}</div>
-                        <span className="criterion-points">{criterion.max_points} pts</span>
-                      </div>
-                      <h4>{criterion.label}</h4>
-                      {criterion.description && (
-                        <p className="criterion-description">{criterion.description}</p>
-                      )}
-                      <div className="criterion-params">
-                        {criterion.min_value !== null && criterion.min_value !== undefined && (
-                          <span className="param-badge">Min: {criterion.min_value}</span>
-                        )}
-                        {criterion.max_value !== null && criterion.max_value !== undefined && (
-                          <span className="param-badge">Max: {criterion.max_value}</span>
-                        )}
-                        {criterion.target_value !== null && criterion.target_value !== undefined && (
-                          <span className="param-badge">Cible: {criterion.target_value}</span>
-                        )}
-                      </div>
-                      {!isDefault && (
-                        <div className="criterion-actions">
-                          <label className="toggle-switch small">
-                            <input
-                              type="checkbox"
-                              checked={criterion.enabled}
-                              onChange={() => toggleCriterion(criterion.criterion_id)}
-                            />
-                            <span className="toggle-slider"></span>
-                          </label>
-                          <button
-                            onClick={() => handleEditCriterion(criterion)}
-                            className="edit-criterion-btn"
-                            title="Modifier"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCriterion(criterion.criterion_id)}
-                            className="delete-criterion-btn"
-                            title="Supprimer"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="score-info-footer">
-                <div className="score-tip">
-                  <strong>💡 Conseil:</strong> Le score SEO est calculé automatiquement lors de chaque sauvegarde.
-                  {isDefault
-                    ? ' Personnalisez les critères pour adapter le calcul à vos besoins.'
-                    : ' Ajustez les points et paramètres pour refléter vos priorités SEO.'}
-                </div>
-              </div>
+              <button onClick={() => setShowAddCriterionForm(!showAddCriterionForm)} className="action-btn primary">
+                <span className="btn-icon">{showAddCriterionForm ? '✕' : '+'}</span>
+                {showAddCriterionForm ? 'Annuler' : 'Ajouter un critère'}
+              </button>
+              <button onClick={handleResetToDefault} className="action-btn secondary">
+                <span className="btn-icon">↺</span>
+                Réinitialiser
+              </button>
             </>
           )}
+        </div>
+
+        {/* Add/Edit Criterion Form */}
+        {showAddCriterionForm && (
+          <div className="criterion-form-card">
+            <h4>{editingCriterion ? 'Modifier le critère' : 'Nouveau critère SEO'}</h4>
+            <div className="criterion-form-grid">
+              <div className="form-group">
+                <label>Label du critère *</label>
+                <input
+                  type="text"
+                  value={criterionFormData.label}
+                  onChange={(e) => setCriterionFormData({ ...criterionFormData, label: e.target.value })}
+                  placeholder="Ex: Longueur du contenu"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Type de vérification *</label>
+                <select
+                  value={criterionFormData.check_type}
+                  onChange={(e) => setCriterionFormData({ ...criterionFormData, check_type: e.target.value })}
+                >
+                  {checkTypes.map(ct => (
+                    <option key={ct.value} value={ct.value}>{ct.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group full-width">
+                <label>Description</label>
+                <textarea
+                  value={criterionFormData.description}
+                  onChange={(e) => setCriterionFormData({ ...criterionFormData, description: e.target.value })}
+                  placeholder="Décrivez ce que ce critère vérifie"
+                  rows="2"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Icône</label>
+                <div className="icon-selector">
+                  {icons.map(icon => (
+                    <button
+                      key={icon}
+                      type="button"
+                      className={`icon-btn ${criterionFormData.icon === icon ? 'selected' : ''}`}
+                      onClick={() => setCriterionFormData({ ...criterionFormData, icon })}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Points maximum</label>
+                <input
+                  type="number"
+                  value={criterionFormData.max_points}
+                  onChange={(e) => setCriterionFormData({ ...criterionFormData, max_points: e.target.value })}
+                  min="1"
+                  max="20"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Valeur minimum</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={criterionFormData.min_value}
+                  onChange={(e) => setCriterionFormData({ ...criterionFormData, min_value: e.target.value })}
+                  placeholder="Ex: 300"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Valeur maximum</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={criterionFormData.max_value}
+                  onChange={(e) => setCriterionFormData({ ...criterionFormData, max_value: e.target.value })}
+                  placeholder="Ex: 160"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Valeur cible (bonus)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={criterionFormData.target_value}
+                  onChange={(e) => setCriterionFormData({ ...criterionFormData, target_value: e.target.value })}
+                  placeholder="Ex: 800"
+                />
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button onClick={handleAddCriterion} className="save-button">
+                {editingCriterion ? 'Mettre à jour' : 'Ajouter'}
+              </button>
+              <button onClick={resetCriterionForm} className="cancel-button">
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Criteria Grid */}
+        {criteriaLoading ? (
+          <div className="loading-container">
+            <div className="loading-spinner"></div>
+            <p>Chargement des critères...</p>
+          </div>
+        ) : (
+          <div className="criteria-grid">
+            {criteria.map((criterion) => (
+              <div
+                key={criterion.criterion_id}
+                className={`criterion-card ${!criterion.enabled ? 'disabled' : ''}`}
+              >
+                <div className="criterion-header">
+                  <div className="criterion-icon-wrapper">
+                    <span className="criterion-icon">{criterion.icon}</span>
+                  </div>
+                  <div className="criterion-points-badge">
+                    {criterion.max_points} pts
+                  </div>
+                </div>
+
+                <div className="criterion-body">
+                  <h4 className="criterion-title">{criterion.label}</h4>
+                  {criterion.description && (
+                    <p className="criterion-description">{criterion.description}</p>
+                  )}
+
+                  <div className="criterion-params">
+                    {criterion.min_value !== null && criterion.min_value !== undefined && (
+                      <span className="param-tag">
+                        <span className="param-icon">↓</span> Min: {criterion.min_value}
+                      </span>
+                    )}
+                    {criterion.max_value !== null && criterion.max_value !== undefined && (
+                      <span className="param-tag">
+                        <span className="param-icon">↑</span> Max: {criterion.max_value}
+                      </span>
+                    )}
+                    {criterion.target_value !== null && criterion.target_value !== undefined && (
+                      <span className="param-tag target">
+                        <span className="param-icon">🎯</span> Cible: {criterion.target_value}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {!isDefault && (
+                  <div className="criterion-footer">
+                    <label className="toggle-switch small">
+                      <input
+                        type="checkbox"
+                        checked={criterion.enabled}
+                        onChange={() => toggleCriterion(criterion.criterion_id)}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">{criterion.enabled ? 'Actif' : 'Inactif'}</span>
+                    </label>
+                    <div className="criterion-buttons">
+                      <button
+                        onClick={() => handleEditCriterion(criterion)}
+                        className="icon-button edit"
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCriterion(criterion.criterion_id)}
+                        className="icon-button delete"
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer info */}
+        <div className="info-footer">
+          <div className="info-icon">💡</div>
+          <div className="info-content">
+            <strong>Conseil</strong>
+            <p>
+              Le score SEO est calculé automatiquement lors de chaque sauvegarde.
+              {isDefault
+                ? ' Personnalisez les critères pour adapter le calcul à vos besoins.'
+                : ' Ajustez les points et paramètres pour refléter vos priorités SEO.'}
+            </p>
+          </div>
         </div>
       </main>
     </div>

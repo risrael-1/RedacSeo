@@ -23,10 +23,14 @@ const Redaction = () => {
   const [content, setContent] = useState('');
   const [articleName, setArticleName] = useState('');
   const [projectId, setProjectId] = useState(null);
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showSavePopup, setShowSavePopup] = useState(false);
   const [showClearPopup, setShowClearPopup] = useState(false);
   const [articleNameError, setArticleNameError] = useState('');
   const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
+  const [copiedField, setCopiedField] = useState(null);
+  const [showHtmlPreview, setShowHtmlPreview] = useState(false);
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
   const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
@@ -39,18 +43,22 @@ const Redaction = () => {
   // Charger l'article en cours
   useEffect(() => {
     if (currentArticle) {
-      // Reset le flag de modification quand on charge un nouvel article
-      hasUserModified.current = false;
-      currentArticleIdRef.current = currentArticle.id;
+      // Ne recharger que si c'est un NOUVEL article (ID différent)
+      // Cela évite d'écraser les modifications de l'utilisateur si currentArticle se met à jour
+      if (currentArticleIdRef.current !== currentArticle.id) {
+        // Reset le flag de modification quand on charge un nouvel article
+        hasUserModified.current = false;
+        currentArticleIdRef.current = currentArticle.id;
 
-      setTitle(currentArticle.title || '');
-      setMetaDescription(currentArticle.metaDescription || '');
-      setKeyword(currentArticle.keyword || '');
-      setSecondaryKeywords(currentArticle.secondaryKeywords || []);
-      setContent(currentArticle.content || '');
-      setArticleName(currentArticle.articleName || '');
-      setProjectId(currentArticle.projectId || null);
-      setSeoFieldsEnabled(currentArticle.seoFieldsEnabled !== false); // true par défaut
+        setTitle(currentArticle.title || '');
+        setMetaDescription(currentArticle.metaDescription || '');
+        setKeyword(currentArticle.keyword || '');
+        setSecondaryKeywords(currentArticle.secondaryKeywords || []);
+        setContent(currentArticle.content || '');
+        setArticleName(currentArticle.articleName || '');
+        setProjectId(currentArticle.projectId || null);
+        setSeoFieldsEnabled(currentArticle.seoFieldsEnabled !== false); // true par défaut
+      }
     }
   }, [currentArticle]);
 
@@ -220,14 +228,434 @@ const Redaction = () => {
     return processedText;
   };
 
+  // Fonction pour nettoyer le HTML collé et garder les balises et attributs utiles
+  const cleanPastedHtml = (html) => {
+    // Créer un élément temporaire pour parser le HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+
+    // Flag pour tracker si on a déjà rencontré un titre (le premier sera H1)
+    let firstTitleFound = false;
+
+    // Fonction pour vérifier si un paragraphe est principalement en gras (titre potentiel)
+    const isParagraphMostlyBold = (node) => {
+      const fullText = node.textContent.trim();
+      if (!fullText) return false;
+
+      // Chercher le texte en gras (font-weight:700 ou balises strong/b)
+      let boldText = '';
+      const walkNode = (n) => {
+        if (n.nodeType === Node.TEXT_NODE) {
+          const parent = n.parentElement;
+          if (parent) {
+            const style = parent.getAttribute('style') || '';
+            const tagName = parent.tagName?.toLowerCase();
+            if (style.includes('font-weight:700') || style.includes('font-weight: 700') ||
+                tagName === 'strong' || tagName === 'b') {
+              boldText += n.textContent;
+            }
+          }
+        } else if (n.nodeType === Node.ELEMENT_NODE) {
+          const style = n.getAttribute('style') || '';
+          const tagName = n.tagName?.toLowerCase();
+          if (style.includes('font-weight:700') || style.includes('font-weight: 700') ||
+              tagName === 'strong' || tagName === 'b') {
+            boldText += n.textContent;
+          } else {
+            n.childNodes.forEach(child => walkNode(child));
+          }
+        }
+      };
+      node.childNodes.forEach(child => walkNode(child));
+
+      // Si plus de 80% du texte est en gras, c'est probablement un titre
+      const boldRatio = boldText.trim().length / fullText.length;
+      return boldRatio > 0.8;
+    };
+
+    // Fonction pour détecter si un texte ressemble à un titre H2 (titre de section)
+    const isH2Title = (text, node) => {
+      const trimmed = text.trim();
+      // Critères pour un H2 :
+      // - Entre 15 et 120 caractères
+      // - Ne finit pas par un point (sauf ...)
+      // - Pas trop de mots (max ~15)
+      // - Doit être principalement en gras
+      if (trimmed.length < 15 || trimmed.length > 120) return false;
+      if (trimmed.endsWith('.') && !trimmed.endsWith('...')) return false;
+      if (trimmed.endsWith(',') || trimmed.endsWith(';')) return false;
+
+      const wordCount = trimmed.split(/\s+/).length;
+      if (wordCount > 15) return false;
+
+      // Vérifier si le paragraphe est principalement en gras
+      return isParagraphMostlyBold(node);
+    };
+
+    // Fonction pour détecter si un texte ressemble à un titre H3 (FAQ, sous-section)
+    const isH3Title = (text) => {
+      const trimmed = text.trim();
+      // Critères pour un H3 :
+      // - Questions (finit par ?)
+      // - Commence par FAQ
+      if (trimmed.endsWith('?') && trimmed.length < 150) return true;
+      if (/^FAQ\s*[-–—:]/i.test(trimmed)) return true;
+      return false;
+    };
+
+    // Fonction pour extraire les attributs à conserver
+    const getAttributesString = (node, allowedAttrs = ['style', 'class', 'href', 'target']) => {
+      const attrs = [];
+      allowedAttrs.forEach(attrName => {
+        const attrValue = node.getAttribute(attrName);
+        if (attrValue) {
+          // Pour style, on garde seulement certaines propriétés utiles
+          if (attrName === 'style') {
+            const allowedStyles = ['text-align', 'color', 'font-weight', 'font-style'];
+            const styleProps = attrValue.split(';')
+              .map(s => s.trim())
+              .filter(s => {
+                const propName = s.split(':')[0]?.trim().toLowerCase();
+                return allowedStyles.some(allowed => propName === allowed);
+              })
+              .join('; ');
+            if (styleProps) {
+              attrs.push(`style="${styleProps}"`);
+            }
+          } else if (attrName === 'class') {
+            // Garder les classes utiles (button, faq-item, etc.)
+            const usefulClasses = ['button', 'faq-item', 'cta', 'highlight'];
+            const classes = attrValue.split(' ')
+              .filter(c => usefulClasses.some(uc => c.includes(uc)))
+              .join(' ');
+            if (classes) {
+              attrs.push(`class="${classes}"`);
+            }
+          } else {
+            attrs.push(`${attrName}="${attrValue}"`);
+          }
+        }
+      });
+      return attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+    };
+
+    // Fonction récursive pour nettoyer les éléments avec indentation
+    const cleanElement = (element, indent = 0, isRoot = false) => {
+      const lines = [];
+      const indentStr = '  '.repeat(indent);
+
+      element.childNodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent.trim();
+          if (text) {
+            // Si c'est du texte au niveau racine et qu'on n'a pas encore de titre, c'est le H1
+            if (isRoot && !firstTitleFound) {
+              firstTitleFound = true;
+              lines.push(`<h1 style="text-align: center;">${text}</h1>`);
+            } else {
+              lines.push(text);
+            }
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const tagName = node.tagName.toLowerCase();
+
+          // Ignorer les balises script, style, meta
+          if (['script', 'style', 'meta', 'link', 'noscript'].includes(tagName)) {
+            return;
+          }
+
+          // Pour les balises inline au niveau racine qui enveloppent tout le contenu,
+          // on les "unwrap" pour traiter leur contenu directement
+          const isInlineWrapper = ['strong', 'b', 'em', 'i', 'u', 'span'].includes(tagName);
+          if (isRoot && isInlineWrapper && node.children.length > 0) {
+            // Traiter les enfants directement comme s'ils étaient au niveau racine
+            const unwrappedContent = cleanElement(node, indent, true);
+            if (unwrappedContent.trim()) {
+              lines.push(unwrappedContent);
+            }
+            return;
+          }
+
+          const childContent = cleanElement(node, indent + 1, false);
+
+          // Balises à conserver avec leurs attributs
+          switch (tagName) {
+            case 'h1':
+            case 'h2':
+            case 'h3':
+            case 'h4':
+            case 'h5':
+            case 'h6': {
+              // Premier titre = toujours H1, les autres gardent leur niveau
+              let finalTag = tagName;
+              // Utiliser le texte propre sans les spans pour les titres
+              const cleanText = node.textContent.trim();
+              if (!firstTitleFound) {
+                finalTag = 'h1';
+                firstTitleFound = true;
+                lines.push(`${indentStr}<${finalTag} style="text-align: center;">${cleanText}</${finalTag}>`);
+              } else {
+                // H3 centré (pour FAQ), H2 normal
+                if (finalTag === 'h3') {
+                  lines.push(`${indentStr}<${finalTag} style="text-align: center;">${cleanText}</${finalTag}>`);
+                } else {
+                  lines.push(`${indentStr}<${finalTag}>${cleanText}</${finalTag}>`);
+                }
+              }
+              break;
+            }
+            case 'p': {
+              // Extraire le texte brut pour analyse
+              const plainText = node.textContent.trim();
+              // Pour les titres, on utilise juste le texte sans les spans
+              const cleanTextContent = plainText;
+
+              // Si c'est le premier élément de contenu, c'est le H1
+              if (!firstTitleFound) {
+                firstTitleFound = true;
+                lines.push(`${indentStr}<h1 style="text-align: center;">${cleanTextContent}</h1>`);
+              }
+              // Détecter les H3 (FAQ, questions) - centré
+              else if (isH3Title(plainText)) {
+                lines.push(`${indentStr}<h3 style="text-align: center;">${cleanTextContent}</h3>`);
+              }
+              // Détecter les H2 (titres de section basé sur le gras)
+              else if (isH2Title(plainText, node)) {
+                lines.push(`${indentStr}<h2>${cleanTextContent}</h2>`);
+              }
+              // Sinon c'est un paragraphe normal
+              else {
+                lines.push(`${indentStr}<p${getAttributesString(node)}>${childContent}</p>`);
+              }
+              break;
+            }
+            case 'strong':
+            case 'b':
+              lines.push(`<strong>${childContent}</strong>`);
+              break;
+            case 'em':
+            case 'i':
+              lines.push(`<em>${childContent}</em>`);
+              break;
+            case 'u':
+              lines.push(`<u>${childContent}</u>`);
+              break;
+            case 'a': {
+              const href = node.getAttribute('href');
+              const target = node.getAttribute('target');
+              const aClass = node.getAttribute('class');
+              if (href) {
+                let aAttrs = `href="${href}"`;
+                if (target) aAttrs += ` target="${target}"`;
+                if (aClass && aClass.includes('button')) aAttrs += ` class="button"`;
+                lines.push(`<a ${aAttrs}>${childContent}</a>`);
+              } else {
+                lines.push(childContent);
+              }
+              break;
+            }
+            case 'ul':
+              lines.push(`${indentStr}<ul${getAttributesString(node)}>`);
+              lines.push(childContent);
+              lines.push(`${indentStr}</ul>`);
+              break;
+            case 'ol':
+              lines.push(`${indentStr}<ol${getAttributesString(node)}>`);
+              lines.push(childContent);
+              lines.push(`${indentStr}</ol>`);
+              break;
+            case 'li':
+              lines.push(`${'  '.repeat(indent)}<li${getAttributesString(node)}>${childContent}</li>`);
+              break;
+            case 'br':
+              lines.push('<br>');
+              break;
+            case 'blockquote':
+              lines.push(`${indentStr}<blockquote${getAttributesString(node)}>`);
+              lines.push(`${'  '.repeat(indent + 1)}${childContent}`);
+              lines.push(`${indentStr}</blockquote>`);
+              break;
+            case 'div': {
+              // Pour les div avec classe utile, on les garde
+              const divClass = node.getAttribute('class');
+              if (divClass && (divClass.includes('faq') || divClass.includes('cta'))) {
+                lines.push(`${indentStr}<div class="${divClass}">`);
+                lines.push(childContent);
+                lines.push(`${indentStr}</div>`);
+              } else if (childContent.trim()) {
+                lines.push(childContent);
+              }
+              break;
+            }
+            case 'span': {
+              // Pour span avec style de couleur, on garde
+              const spanStyle = node.getAttribute('style');
+              if (spanStyle && spanStyle.includes('color')) {
+                lines.push(`<span style="${spanStyle}">${childContent}</span>`);
+              } else if (childContent.trim()) {
+                lines.push(childContent);
+              }
+              break;
+            }
+            default:
+              // Pour les autres balises, on garde juste le contenu
+              if (childContent.trim()) {
+                lines.push(childContent);
+              }
+          }
+        }
+      });
+
+      return lines.join('\n');
+    };
+
+    let cleanedHtml = cleanElement(tempDiv, 0, true);
+
+    // Nettoyer les lignes vides excessives
+    cleanedHtml = cleanedHtml
+      .split('\n')
+      .filter((line, index, arr) => {
+        // Supprimer les lignes vides consécutives (garder max 1)
+        if (line.trim() === '' && index > 0 && arr[index - 1].trim() === '') {
+          return false;
+        }
+        return true;
+      })
+      .join('\n')
+      .trim();
+
+    return cleanedHtml;
+  };
+
+  // Fonction pour convertir du texte brut en HTML avec détection des titres
+  const convertPlainTextToHtml = (text) => {
+    const lines = text.split('\n');
+    let result = [];
+    let isFirstNonEmptyLine = true;
+    let currentParagraph = [];
+
+    // Patterns pour détecter les titres H2 (lignes courtes qui ressemblent à des titres)
+    const isTitleLine = (line) => {
+      const trimmed = line.trim();
+      // Critères pour un titre :
+      // - Entre 10 et 100 caractères
+      // - Ne finit pas par un point (sauf ...)
+      // - Peut contenir ":" ou "-"
+      // - Pas trop de mots (max ~15)
+      if (trimmed.length < 10 || trimmed.length > 100) return false;
+      if (trimmed.endsWith('.') && !trimmed.endsWith('...')) return false;
+      if (trimmed.endsWith(',') || trimmed.endsWith(';')) return false;
+
+      const wordCount = trimmed.split(/\s+/).length;
+      if (wordCount > 15) return false;
+
+      // Bonus : contient souvent ":" ou commence par une majuscule
+      const startsWithCapital = /^[A-ZÀ-Ü]/.test(trimmed);
+      const hasColon = trimmed.includes(':');
+      const hasQuestion = trimmed.includes('?');
+
+      return startsWithCapital && (hasColon || hasQuestion || wordCount <= 10);
+    };
+
+    // Patterns pour détecter les sous-titres H3 (FAQ, questions)
+    const isSubtitleLine = (line) => {
+      const trimmed = line.trim();
+      // Questions courtes ou lignes commençant par des patterns FAQ
+      if (trimmed.endsWith('?') && trimmed.length < 120) return true;
+      if (/^(FAQ|Q:|Question)/i.test(trimmed)) return true;
+      return false;
+    };
+
+    // Fonction pour flush le paragraphe en cours
+    const flushParagraph = () => {
+      if (currentParagraph.length > 0) {
+        const paragraphText = currentParagraph.join(' ').trim();
+        if (paragraphText) {
+          result.push(`<p style="text-align: justify;">${paragraphText}</p>`);
+        }
+        currentParagraph = [];
+      }
+    };
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+
+      // Ligne vide = fin de paragraphe
+      if (!trimmedLine) {
+        flushParagraph();
+        return;
+      }
+
+      // Première ligne non vide = H1 (titre principal)
+      if (isFirstNonEmptyLine) {
+        flushParagraph();
+        result.push(`<h1 style="text-align: center;">${trimmedLine}</h1>`);
+        isFirstNonEmptyLine = false;
+        return;
+      }
+
+      // Détecter les liens/boutons (format [texte] ou texte avec URL)
+      if (/^\[.*\].*$/.test(trimmedLine) || /^https?:\/\//.test(trimmedLine)) {
+        flushParagraph();
+        // Extraire le texte du lien si format [texte](url) ou [url]texte
+        const linkMatch = trimmedLine.match(/\[(https?:\/\/[^\]]+)\](.+)/);
+        if (linkMatch) {
+          result.push(`<p style="text-align: justify;"><a class="button" href="${linkMatch[1]}">${linkMatch[2].trim()}</a></p>`);
+        } else {
+          result.push(`<p style="text-align: justify;">${trimmedLine}</p>`);
+        }
+        return;
+      }
+
+      // Détecter H3 (sous-titres, questions FAQ)
+      if (isSubtitleLine(trimmedLine)) {
+        flushParagraph();
+        result.push(`<h3 style="text-align: justify;">${trimmedLine}</h3>`);
+        return;
+      }
+
+      // Détecter H2 (titres de section)
+      // On vérifie aussi que la ligne précédente était vide ou que c'est après plusieurs paragraphes
+      const prevLine = index > 0 ? lines[index - 1].trim() : '';
+      if (isTitleLine(trimmedLine) && (prevLine === '' || index < 3)) {
+        flushParagraph();
+        result.push(`<h2 style="text-align: justify;">${trimmedLine}</h2>`);
+        return;
+      }
+
+      // Sinon c'est du contenu de paragraphe
+      currentParagraph.push(trimmedLine);
+    });
+
+    // Flush le dernier paragraphe
+    flushParagraph();
+
+    return result.join('\n');
+  };
+
   const handlePaste = (e) => {
     e.preventDefault();
-    const pastedText = e.clipboardData.getData('text');
+
+    // Essayer de récupérer le contenu HTML d'abord
+    const htmlContent = e.clipboardData.getData('text/html');
+    const textContent = e.clipboardData.getData('text/plain');
+
+    let pastedContent;
+
+    if (htmlContent) {
+      // Si on a du HTML, le nettoyer pour garder la mise en forme
+      pastedContent = cleanPastedHtml(htmlContent);
+    } else if (textContent) {
+      // Si c'est du texte brut, essayer de détecter la structure
+      pastedContent = convertPlainTextToHtml(textContent);
+    } else {
+      pastedContent = '';
+    }
 
     const textarea = document.getElementById('content-editor');
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const newContent = content.substring(0, start) + pastedText + content.substring(end);
+    const newContent = content.substring(0, start) + pastedContent + content.substring(end);
     setContent(newContent);
     markAsModified();
   };
@@ -267,6 +695,18 @@ const Redaction = () => {
   const getWordCount = () => {
     if (!content) return 0;
     return content.trim().split(/\s+/).filter(w => w.length > 0).length;
+  };
+
+  // Fonction pour copier du texte dans le presse-papier
+  const copyToClipboard = async (text, fieldName) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Erreur lors de la copie:', err);
+    }
   };
 
   // Calcul en temps réel du score et des critères SEO
@@ -355,21 +795,84 @@ const Redaction = () => {
             </div>
 
             {projects.length > 0 && (
-              <div className="form-group">
-                <label htmlFor="projectSelect">Projet associé</label>
-                <select
-                  id="projectSelect"
-                  value={projectId || ''}
-                  onChange={(e) => { setProjectId(e.target.value || null); markAsModified(); }}
-                  className="project-select-field"
-                >
-                  <option value="">Aucun projet</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="form-group project-select-container">
+                <label htmlFor="projectSearch">Projet associé</label>
+                <div className="project-search-wrapper">
+                  <input
+                    type="text"
+                    id="projectSearch"
+                    placeholder="Rechercher un projet..."
+                    value={showProjectDropdown ? projectSearchQuery : (projects.find(p => p.id === projectId)?.name || '')}
+                    onChange={(e) => {
+                      setProjectSearchQuery(e.target.value);
+                      setShowProjectDropdown(true);
+                    }}
+                    onFocus={() => {
+                      setShowProjectDropdown(true);
+                      setProjectSearchQuery('');
+                    }}
+                    onBlur={() => {
+                      // Délai pour permettre le clic sur une option
+                      setTimeout(() => setShowProjectDropdown(false), 200);
+                    }}
+                    className="project-search-input"
+                    autoComplete="off"
+                  />
+                  {projectId && (
+                    <button
+                      type="button"
+                      className="project-clear-btn"
+                      onClick={() => {
+                        setProjectId(null);
+                        setProjectSearchQuery('');
+                        markAsModified();
+                      }}
+                      title="Retirer le projet"
+                    >
+                      ×
+                    </button>
+                  )}
+                  {showProjectDropdown && (
+                    <div className="project-dropdown">
+                      <div
+                        className={`project-dropdown-item ${!projectId ? 'selected' : ''}`}
+                        onMouseDown={() => {
+                          setProjectId(null);
+                          setProjectSearchQuery('');
+                          setShowProjectDropdown(false);
+                          markAsModified();
+                        }}
+                      >
+                        Aucun projet
+                      </div>
+                      {projects
+                        .filter(project =>
+                          project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+                        )
+                        .map((project) => (
+                          <div
+                            key={project.id}
+                            className={`project-dropdown-item ${projectId === project.id ? 'selected' : ''}`}
+                            onMouseDown={() => {
+                              setProjectId(project.id);
+                              setProjectSearchQuery('');
+                              setShowProjectDropdown(false);
+                              markAsModified();
+                            }}
+                          >
+                            {project.name}
+                          </div>
+                        ))}
+                      {projects.filter(project =>
+                        project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+                      ).length === 0 && projectSearchQuery && (
+                        <div className="project-dropdown-item no-results">
+                          Aucun projet trouvé
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -437,7 +940,18 @@ const Redaction = () => {
                   <div className="form-group">
                     <div className="suggestion-group-header">
                       <label htmlFor="title">Titre SEO</label>
-                      <span className="char-count-inline">{title.length}/65 car.</span>
+                      <div className="field-actions">
+                        <span className="char-count-inline">{title.length}/65 car.</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(title, 'title')}
+                          className="copy-icon-button"
+                          title="Copier le titre"
+                          disabled={!title}
+                        >
+                          {copiedField === 'title' ? '✓' : '📋'}
+                        </button>
+                      </div>
                     </div>
                     <input
                       type="text"
@@ -451,7 +965,18 @@ const Redaction = () => {
                   <div className="form-group">
                     <div className="suggestion-group-header">
                       <label htmlFor="metaDescription">Meta description</label>
-                      <span className="char-count-inline">{metaDescription.length}/160 car.</span>
+                      <div className="field-actions">
+                        <span className="char-count-inline">{metaDescription.length}/160 car.</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(metaDescription, 'meta')}
+                          className="copy-icon-button"
+                          title="Copier la meta description"
+                          disabled={!metaDescription}
+                        >
+                          {copiedField === 'meta' ? '✓' : '📋'}
+                        </button>
+                      </div>
                     </div>
                     <textarea
                       id="metaDescription"
@@ -490,21 +1015,49 @@ const Redaction = () => {
             <div className="form-group">
               <div className="content-label-wrapper">
                 <label htmlFor="content-editor">Contenu de l'article</label>
-                <button onClick={handleClearContent} className="clear-icon-button" title="Effacer le contenu">
-                  🗑️
-                </button>
+                <div className="content-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowHtmlPreview(!showHtmlPreview)}
+                    className={`preview-toggle-button ${showHtmlPreview ? 'active' : ''}`}
+                    title={showHtmlPreview ? 'Mode édition' : 'Aperçu HTML'}
+                  >
+                    {showHtmlPreview ? '✏️ Éditer' : '👁️ Aperçu'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(content, 'content')}
+                    className="copy-icon-button"
+                    title="Copier le contenu"
+                    disabled={!content}
+                  >
+                    {copiedField === 'content' ? '✓' : '📋'}
+                  </button>
+                  <button onClick={handleClearContent} className="clear-icon-button" title="Effacer le contenu">
+                    🗑️
+                  </button>
+                </div>
               </div>
               <div className="content-info">
-                Collez votre article ici. Les mots-clés seront automatiquement mis en gras.
+                {showHtmlPreview
+                  ? 'Aperçu du rendu HTML de votre article.'
+                  : 'Collez votre article ici. Les mots-clés seront automatiquement mis en gras.'}
               </div>
-              <textarea
-                id="content-editor"
-                value={content}
-                onChange={(e) => { setContent(e.target.value); markAsModified(); }}
-                onPaste={handlePaste}
-                placeholder="Collez ou rédigez votre contenu ici..."
-                rows="20"
-              />
+              {showHtmlPreview ? (
+                <div
+                  className="html-preview"
+                  dangerouslySetInnerHTML={{ __html: content || '<p style="color: #999;">Aucun contenu à afficher</p>' }}
+                />
+              ) : (
+                <textarea
+                  id="content-editor"
+                  value={content}
+                  onChange={(e) => { setContent(e.target.value); markAsModified(); }}
+                  onPaste={handlePaste}
+                  placeholder="Collez ou rédigez votre contenu ici..."
+                  rows="20"
+                />
+              )}
               <span className="char-count">{getWordCount()} mots</span>
             </div>
           </div>

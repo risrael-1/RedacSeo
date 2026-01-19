@@ -4,10 +4,21 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const getAuthToken = () => {
   const user = localStorage.getItem('user');
   if (user) {
-    const userData = JSON.parse(user);
-    return userData.token;
+    try {
+      const userData = JSON.parse(user);
+      return userData.token;
+    } catch {
+      return null;
+    }
   }
   return null;
+};
+
+// Helper function to handle 401 errors (token expired/invalid)
+const handleUnauthorized = () => {
+  localStorage.removeItem('user');
+  // Rediriger vers la page de connexion
+  window.location.href = '/';
 };
 
 // Helper function to make authenticated requests
@@ -26,6 +37,12 @@ const fetchWithAuth = async (url, options = {}) => {
     ...options,
     headers,
   });
+
+  // Si token expiré ou invalide, déconnecter et rediriger
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw new Error('Session expirée. Veuillez vous reconnecter.');
+  }
 
   if (!response.ok) {
     const error = await response.json();
@@ -90,27 +107,6 @@ export const articlesAPI = {
   delete: async (id) => {
     return fetchWithAuth(`/articles/${id}`, {
       method: 'DELETE',
-    });
-  },
-};
-
-// Rules API
-export const rulesAPI = {
-  getAll: async () => {
-    return fetchWithAuth('/rules');
-  },
-
-  upsert: async (ruleData) => {
-    return fetchWithAuth('/rules', {
-      method: 'POST',
-      body: JSON.stringify(ruleData),
-    });
-  },
-
-  batchUpdate: async (rules) => {
-    return fetchWithAuth('/rules/batch', {
-      method: 'POST',
-      body: JSON.stringify({ rules }),
     });
   },
 };

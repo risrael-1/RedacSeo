@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../context/ProjectsContext';
+import { useArticles } from '../context/ArticlesContext';
 import Navbar from '../components/Navbar';
 import './Projects.css';
 
 const Projects = () => {
+  const navigate = useNavigate();
   const { projects, loading, loadProjects, createProject, updateProject, deleteProject } = useProjects();
+  const { articles, loadArticle } = useArticles();
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [formData, setFormData] = useState({
@@ -16,6 +20,26 @@ const Projects = () => {
   const [success, setSuccess] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProject, setSelectedProject] = useState(null);
+
+  // Filtrer les projets selon la recherche
+  const filteredProjects = projects.filter(project =>
+    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (project.description && project.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  // Obtenir les articles du projet sélectionné
+  // Note: les articles sont stockés avec project_id (format API)
+  const projectArticles = selectedProject
+    ? articles.filter(article => article.project_id === selectedProject.id)
+    : [];
+
+  // Naviguer vers un article
+  const handleArticleClick = (articleId) => {
+    loadArticle(articleId);
+    navigate('/redaction');
+  };
 
   // Recharger les projets quand on arrive sur la page
   useEffect(() => {
@@ -114,9 +138,28 @@ const Projects = () => {
       <div className="projects-container">
         <div className="projects-header">
           <h1>Mes Projets</h1>
-          <button className="btn-primary" onClick={() => handleOpenModal()}>
-            + Nouveau Projet
-          </button>
+          <div className="projects-header-actions">
+            <div className="projects-search-wrapper">
+              <input
+                type="text"
+                placeholder="Rechercher un projet..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="projects-search-input"
+              />
+              {searchQuery && (
+                <button
+                  className="projects-search-clear"
+                  onClick={() => setSearchQuery('')}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <button className="btn-primary" onClick={() => handleOpenModal()}>
+              + Nouveau Projet
+            </button>
+          </div>
         </div>
 
         {projects.length === 0 ? (
@@ -127,41 +170,110 @@ const Projects = () => {
             </p>
           </div>
         ) : (
-          <div className="projects-grid">
-            {projects.map((project) => (
-              <div key={project.id} className="project-card">
-                <div
-                  className="project-color-bar"
-                  style={{ backgroundColor: project.color }}
-                ></div>
-                <div className="project-card-content">
-                  <h3 className="project-name">{project.name}</h3>
-                  {project.description && (
-                    <p className="project-description">{project.description}</p>
-                  )}
-                  <div className="project-stats">
-                    <span className="project-stat">
-                      {project.article_count || 0} article(s)
-                    </span>
-                  </div>
-                  <div className="project-actions">
-                    <button
-                      className="btn-edit"
-                      onClick={() => handleOpenModal(project)}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      className="btn-delete"
-                      onClick={() => handleDeleteClick(project)}
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
+          <>
+            {searchQuery && filteredProjects.length === 0 ? (
+              <div className="empty-state">
+                <p>Aucun projet trouvé pour "{searchQuery}"</p>
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="projects-grid">
+                {filteredProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className={`project-card ${selectedProject?.id === project.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedProject(selectedProject?.id === project.id ? null : project)}
+                  >
+                    <div
+                      className="project-color-bar"
+                      style={{ backgroundColor: project.color }}
+                    ></div>
+                    <div className="project-card-content">
+                      <h3 className="project-name">{project.name}</h3>
+                      {project.description && (
+                        <p className="project-description">{project.description}</p>
+                      )}
+                      <div className="project-stats">
+                        <span className="project-stat">
+                          {project.article_count || 0} article(s)
+                        </span>
+                      </div>
+                      <div className="project-actions">
+                        <button
+                          className="btn-edit"
+                          onClick={(e) => { e.stopPropagation(); handleOpenModal(project); }}
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          className="btn-delete"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteClick(project); }}
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Section des articles du projet sélectionné */}
+            {selectedProject && (
+              <div className="project-articles-section">
+                <div className="project-articles-header">
+                  <h2>
+                    <span
+                      className="project-articles-color"
+                      style={{ backgroundColor: selectedProject.color }}
+                    ></span>
+                    Articles de "{selectedProject.name}"
+                  </h2>
+                  <button
+                    className="project-articles-close"
+                    onClick={() => setSelectedProject(null)}
+                  >
+                    ×
+                  </button>
+                </div>
+                {projectArticles.length === 0 ? (
+                  <div className="project-articles-empty">
+                    <p>Aucun article dans ce projet</p>
+                    <button
+                      className="btn-primary"
+                      onClick={() => navigate('/redaction')}
+                    >
+                      Créer un article
+                    </button>
+                  </div>
+                ) : (
+                  <div className="project-articles-list">
+                    {projectArticles.map((article) => (
+                      <div
+                        key={article.id}
+                        className="project-article-item"
+                        onClick={() => handleArticleClick(article.id)}
+                      >
+                        <div className="project-article-info">
+                          <h4 className="project-article-name">{article.article_name}</h4>
+                          {article.keyword && (
+                            <span className="project-article-keyword">{article.keyword}</span>
+                          )}
+                        </div>
+                        <div className="project-article-meta">
+                          <span className="project-article-words">
+                            {article.word_count || 0} mots
+                          </span>
+                          <span className={`project-article-score ${(article.seo_score || 0) >= 80 ? 'good' : (article.seo_score || 0) >= 50 ? 'medium' : 'low'}`}>
+                            {article.seo_score || 0}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {showModal && (
