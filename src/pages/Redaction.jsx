@@ -43,18 +43,22 @@ const Redaction = () => {
   // Charger l'article en cours
   useEffect(() => {
     if (currentArticle) {
-      // Reset le flag de modification quand on charge un nouvel article
-      hasUserModified.current = false;
-      currentArticleIdRef.current = currentArticle.id;
+      // Ne recharger que si c'est un NOUVEL article (ID différent)
+      // Cela évite d'écraser les modifications de l'utilisateur si currentArticle se met à jour
+      if (currentArticleIdRef.current !== currentArticle.id) {
+        // Reset le flag de modification quand on charge un nouvel article
+        hasUserModified.current = false;
+        currentArticleIdRef.current = currentArticle.id;
 
-      setTitle(currentArticle.title || '');
-      setMetaDescription(currentArticle.metaDescription || '');
-      setKeyword(currentArticle.keyword || '');
-      setSecondaryKeywords(currentArticle.secondaryKeywords || []);
-      setContent(currentArticle.content || '');
-      setArticleName(currentArticle.articleName || '');
-      setProjectId(currentArticle.projectId || null);
-      setSeoFieldsEnabled(currentArticle.seoFieldsEnabled !== false); // true par défaut
+        setTitle(currentArticle.title || '');
+        setMetaDescription(currentArticle.metaDescription || '');
+        setKeyword(currentArticle.keyword || '');
+        setSecondaryKeywords(currentArticle.secondaryKeywords || []);
+        setContent(currentArticle.content || '');
+        setArticleName(currentArticle.articleName || '');
+        setProjectId(currentArticle.projectId || null);
+        setSeoFieldsEnabled(currentArticle.seoFieldsEnabled !== false); // true par défaut
+      }
     }
   }, [currentArticle]);
 
