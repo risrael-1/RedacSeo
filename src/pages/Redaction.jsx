@@ -28,6 +28,7 @@ const Redaction = () => {
   const [articleNameError, setArticleNameError] = useState('');
   const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
   const [copiedField, setCopiedField] = useState(null);
+  const [showHtmlPreview, setShowHtmlPreview] = useState(false);
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
   const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
@@ -528,6 +529,14 @@ const Redaction = () => {
                 <div className="content-actions">
                   <button
                     type="button"
+                    onClick={() => setShowHtmlPreview(!showHtmlPreview)}
+                    className={`preview-toggle-button ${showHtmlPreview ? 'active' : ''}`}
+                    title={showHtmlPreview ? 'Mode édition' : 'Aperçu HTML'}
+                  >
+                    {showHtmlPreview ? '✏️ Éditer' : '👁️ Aperçu'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => copyToClipboard(content, 'content')}
                     className="copy-icon-button"
                     title="Copier le contenu"
@@ -541,16 +550,25 @@ const Redaction = () => {
                 </div>
               </div>
               <div className="content-info">
-                Collez votre article ici. Les mots-clés seront automatiquement mis en gras.
+                {showHtmlPreview
+                  ? 'Aperçu du rendu HTML de votre article.'
+                  : 'Collez votre article ici. Les mots-clés seront automatiquement mis en gras.'}
               </div>
-              <textarea
-                id="content-editor"
-                value={content}
-                onChange={(e) => { setContent(e.target.value); markAsModified(); }}
-                onPaste={handlePaste}
-                placeholder="Collez ou rédigez votre contenu ici..."
-                rows="20"
-              />
+              {showHtmlPreview ? (
+                <div
+                  className="html-preview"
+                  dangerouslySetInnerHTML={{ __html: content || '<p style="color: #999;">Aucun contenu à afficher</p>' }}
+                />
+              ) : (
+                <textarea
+                  id="content-editor"
+                  value={content}
+                  onChange={(e) => { setContent(e.target.value); markAsModified(); }}
+                  onPaste={handlePaste}
+                  placeholder="Collez ou rédigez votre contenu ici..."
+                  rows="20"
+                />
+              )}
               <span className="char-count">{getWordCount()} mots</span>
             </div>
           </div>
