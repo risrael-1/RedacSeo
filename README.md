@@ -2,32 +2,45 @@
 
 Application web complète pour la gestion et l'optimisation de contenus SEO. Créez, éditez et optimisez vos articles en suivant les meilleures pratiques du référencement naturel.
 
-## 🏗️ Architecture
+## Architecture
 
 - **Frontend**: React 19.1.0 + Vite (port 5173)
 - **Backend**: Node.js + Express API REST (port 5000)
 - **Base de données**: PostgreSQL via Supabase
 - **Authentification**: JWT (JSON Web Tokens)
 
-## 🚀 Fonctionnalités
+## Fonctionnalités
 
-### Authentification
+### Authentification et Rôles
 - Inscription et connexion utilisateur avec API REST
+- Authentification JWT avec tokens sécurisés (session par onglet)
 - Gestion de mot de passe oublié
-- Authentification JWT avec tokens sécurisés
-- Routes protégées côté frontend et backend
+- **Système de rôles globaux** :
+  - `super_admin` : accès total à tous les projets et utilisateurs
+  - `admin` : gère ses projets et voit les membres
+  - `user` : utilisateur standard
+- Page d'administration pour gérer les utilisateurs (super_admin/admin)
+
+### Gestion des Projets
+- Création et organisation de projets par client/thème
+- Couleur personnalisable pour chaque projet
+- **Système de membres par projet** :
+  - `owner` : propriétaire du projet (créateur)
+  - `admin` : peut modifier le projet et gérer les membres
+  - `member` : peut voir et éditer les articles du projet
+- Invitation de membres par email
+- Recherche et filtrage des projets
+- Compteur d'articles et de membres par projet
 
 ### Gestion des Articles
 - Création et sauvegarde d'articles multiples via API
+- Association d'articles à des projets
 - Stockage persistant en base de données PostgreSQL
 - Auto-sauvegarde toutes les 30 secondes
-- Popup de confirmation animée lors de la sauvegarde
-- Liste des articles sauvegardés par utilisateur
-- Chargement et suppression d'articles
-- Icône "Effacer" (🗑️) pour réinitialiser le contenu avec popup de confirmation
+- Liste des articles avec filtrage par projet
 - Navigation depuis le Dashboard vers l'éditeur
-- Synchronisation en temps réel avec le Dashboard
 - Compteur de mots en temps réel
+- Score SEO calculé automatiquement (0-100)
 
 ### Éditeur SEO
 - Éditeur de contenu avec toolbar (gras, H1, H2, H3)
@@ -37,27 +50,29 @@ Application web complète pour la gestion et l'optimisation de contenus SEO. Cr�
 - Génération automatique de suggestions de titre SEO (max 65 caractères)
 - Génération automatique de meta descriptions (150-160 caractères)
 
-### Vérification SEO
-- Configuration personnalisée des règles SEO
-- Vérification en temps réel :
-  - Longueur du titre (max 65 caractères)
-  - Longueur de la meta description (150-160 caractères)
-  - Nombre de mots-clés en gras (min 2)
-  - Nombre de mots dans l'article (min 300)
-  - Nombre de balises H1 (exactement 1)
-- Activation/désactivation des règles individuelles
+### Score SEO Automatique
+Score calculé sur 12 critères (100 points max) :
+- Longueur du contenu (jusqu'à 15 points)
+- Mot-clé dans le titre (12 points + bonus position)
+- Mot-clé dans la meta description (8 points)
+- Longueur de la meta description (8 points)
+- Densité du mot-clé (12 points)
+- Structure H1 (10 points + bonus)
+- Structure H2/H3 (10 points)
+- Contenu en gras (5 points)
+- Longueur du titre (5 points)
+- Et plus...
 
 ### Interface Utilisateur
 - Design moderne et responsive
-- Navigation intuitive avec navbar
-- Dashboard de gestion des articles avec statistiques
-- Édition et suppression d'articles depuis le Dashboard
-- Popup de sauvegarde animée avec icône de succès
-- Suggestions cliquables pour titre et meta description
-- Tags visuels pour les mots-clés secondaires
-- Badges de statut colorés (Brouillon, En cours, Terminé)
+- Navigation intuitive avec navbar adaptée au rôle
+- Dashboard de gestion des articles avec statistiques SEO
+- Page Projets avec gestion des membres
+- Page Admin pour la gestion des utilisateurs
+- Badges de rôle colorés (Propriétaire, Admin, Membre)
+- Badges de statut (Brouillon, En cours, Terminé)
 
-## 🛠️ Technologies Utilisées
+## Technologies Utilisées
 
 ### Frontend
 - **React 19.1.0** - Framework JavaScript
@@ -75,7 +90,7 @@ Application web complète pour la gestion et l'optimisation de contenus SEO. Cr�
 - **bcryptjs** - Hashage des mots de passe
 - **CORS** - Gestion des origines croisées
 
-## 📦 Installation
+## Installation
 
 ### Prérequis
 
@@ -94,14 +109,10 @@ cd RedacSeo
 ```bash
 cd backend
 npm install
+cp .env.example .env
 ```
 
-#### Configurer Supabase
-
-1. Créez un compte sur [Supabase](https://supabase.com)
-2. Créez un nouveau projet
-3. Copiez `.env.example` vers `.env`
-4. Remplissez les variables d'environnement :
+Remplissez les variables d'environnement dans `backend/.env` :
 
 ```env
 PORT=5000
@@ -117,55 +128,11 @@ JWT_EXPIRES_IN=7d
 FRONTEND_URL=http://localhost:5173
 ```
 
-#### Créer les tables
+### 3. Créer les tables
 
-Allez dans **Supabase Dashboard > SQL Editor** et exécutez :
+Allez dans **Supabase Dashboard > SQL Editor** et exécutez le fichier `backend/MIGRATIONS.sql`.
 
-```sql
--- Create users table
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-
--- Create articles table
-CREATE TABLE IF NOT EXISTS articles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  article_name VARCHAR(500),
-  title VARCHAR(255),
-  meta_description TEXT,
-  keyword VARCHAR(255),
-  secondary_keywords JSONB DEFAULT '[]',
-  content TEXT,
-  word_count INTEGER DEFAULT 0,
-  status VARCHAR(50) DEFAULT 'Brouillon',
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_articles_user_id ON articles(user_id);
-
--- Create rules table
-CREATE TABLE IF NOT EXISTS rules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  rule_id VARCHAR(100) NOT NULL,
-  rule_name VARCHAR(255) NOT NULL,
-  enabled BOOLEAN DEFAULT true,
-  min_value INTEGER,
-  max_value INTEGER,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(user_id, rule_id)
-);
-CREATE INDEX IF NOT EXISTS idx_rules_user_id ON rules(user_id);
-```
-
-#### Démarrer le serveur backend
+### 4. Démarrer le serveur backend
 
 ```bash
 npm run dev
@@ -173,7 +140,7 @@ npm run dev
 
 Le serveur démarre sur `http://localhost:5000`
 
-### 3. Configuration du Frontend
+### 5. Configuration du Frontend
 
 Dans un nouveau terminal :
 
@@ -188,7 +155,7 @@ Créez un fichier `.env` à la racine :
 VITE_API_URL=http://localhost:5000/api
 ```
 
-#### Démarrer le frontend
+### 6. Démarrer le frontend
 
 ```bash
 npm run dev
@@ -196,113 +163,128 @@ npm run dev
 
 L'application démarre sur `http://localhost:5173`
 
-### 4. Accéder à l'application
-
-Ouvrez `http://localhost:5173` dans votre navigateur et créez un compte !
-
-## 🏗️ Structure du Projet
+## Structure du Projet
 
 ```
 RedacSeo/
 ├── backend/                    # Backend API REST
 │   ├── src/
 │   │   ├── config/
-│   │   │   ├── supabase.js    # Configuration Supabase
-│   │   │   └── migrate.js     # Script de migration DB
+│   │   │   └── supabase.js    # Configuration Supabase
 │   │   ├── controllers/
-│   │   │   ├── authController.js      # Logique d'authentification
-│   │   │   ├── articlesController.js  # Logique articles
-│   │   │   └── rulesController.js     # Logique règles SEO
+│   │   │   ├── authController.js      # Authentification
+│   │   │   ├── articlesController.js  # Articles
+│   │   │   ├── projectsController.js  # Projets
+│   │   │   ├── usersController.js     # Utilisateurs & membres
+│   │   │   └── rulesController.js     # Règles SEO
 │   │   ├── middleware/
 │   │   │   └── auth.js        # Middleware JWT
 │   │   ├── routes/
-│   │   │   ├── authRoutes.js  # Routes d'authentification
-│   │   │   ├── articlesRoutes.js      # Routes articles
-│   │   │   └── rulesRoutes.js # Routes règles
-│   │   └── server.js          # Point d'entrée du serveur
-│   ├── .env.example
-│   ├── package.json
-│   └── README.md
+│   │   │   ├── authRoutes.js
+│   │   │   ├── articlesRoutes.js
+│   │   │   ├── projectsRoutes.js
+│   │   │   ├── usersRoutes.js
+│   │   │   └── rulesRoutes.js
+│   │   └── server.js          # Point d'entrée
+│   ├── MIGRATIONS.sql         # Toutes les migrations SQL
+│   └── package.json
 │
 ├── src/                       # Frontend React
 │   ├── components/
 │   │   ├── Navbar.jsx        # Barre de navigation
-│   │   └── ProtectedRoute.jsx # Routes protégées
+│   │   └── ProtectedRoute.jsx
 │   ├── context/
-│   │   ├── AuthContext.jsx   # Gestion auth avec API
-│   │   ├── RulesContext.jsx  # Gestion règles avec API
-│   │   └── ArticlesContext.jsx # Gestion articles avec API
+│   │   ├── AuthContext.jsx   # Auth + rôles
+│   │   ├── ArticlesContext.jsx
+│   │   ├── ProjectsContext.jsx
+│   │   └── RulesContext.jsx
 │   ├── pages/
-│   │   ├── Login.jsx         # Page de connexion
-│   │   ├── Register.jsx      # Page d'inscription
-│   │   ├── ForgotPassword.jsx # Réinitialisation mot de passe
-│   │   ├── Dashboard.jsx     # Tableau de bord
-│   │   ├── Redaction.jsx     # Éditeur de contenu SEO
-│   │   └── Regles.jsx        # Configuration des règles
+│   │   ├── Login.jsx
+│   │   ├── Register.jsx
+│   │   ├── Dashboard.jsx
+│   │   ├── Redaction.jsx     # Éditeur SEO
+│   │   ├── Projects.jsx      # Gestion projets & membres
+│   │   ├── Admin.jsx         # Gestion utilisateurs
+│   │   └── Regles.jsx
 │   ├── services/
 │   │   └── api.js            # Service API REST
-│   ├── App.jsx               # Composant racine
-│   ├── main.jsx              # Point d'entrée
-│   └── index.css             # Styles globaux
-├── .env.example
+│   └── App.jsx
+├── docs/
+│   └── PRODUCTION_ENV.md     # Config production
 ├── package.json
-├── vite.config.js
 └── README.md
 ```
 
-## 📝 Utilisation
+## API Endpoints
 
-### 1. Créer un compte
-- Accéder à la page d'inscription
-- Entrer votre email et mot de passe
-- Se connecter avec vos identifiants
+### Authentification
+- `POST /api/auth/register` - Inscription
+- `POST /api/auth/login` - Connexion
+- `POST /api/auth/reset-password` - Réinitialiser mot de passe
+- `GET /api/auth/me` - Utilisateur actuel
 
-### 2. Rédiger un article
-1. Aller dans la section "Rédaction"
-2. Donner un nom à votre article
-3. Coller ou rédiger votre contenu
-4. Cliquer sur "Générer des suggestions" pour obtenir des propositions de titre et meta description
-5. Définir votre mot-clé principal et vos mots-clés secondaires
-6. Cliquer sur "Appliquer le gras aux mots-clés" pour formater le contenu
-7. Choisir parmi les suggestions de titre et meta description
-8. Sauvegarder votre article
+### Articles
+- `GET /api/articles` - Liste des articles (filtrés par rôle)
+- `GET /api/articles/:id` - Détails d'un article
+- `POST /api/articles` - Créer un article
+- `PUT /api/articles/:id` - Modifier un article
+- `DELETE /api/articles/:id` - Supprimer un article
 
-### 3. Vérifier les règles SEO
-- Cliquer sur "Vérifier les règles SEO"
-- Consulter les résultats de validation
-- Ajuster votre contenu selon les recommandations
+### Projets
+- `GET /api/projects` - Liste des projets (filtrés par rôle)
+- `GET /api/projects/:id` - Détails d'un projet
+- `POST /api/projects` - Créer un projet
+- `PUT /api/projects/:id` - Modifier un projet
+- `DELETE /api/projects/:id` - Supprimer un projet
 
-### 4. Configurer les règles
-- Aller dans "Règles SEO"
-- Activer/désactiver les règles selon vos besoins
-- Modifier les valeurs minimales/maximales
-- Les règles sont sauvegardées automatiquement
+### Utilisateurs et Membres
+- `GET /api/users` - Liste des utilisateurs (admin)
+- `PATCH /api/users/:id/role` - Modifier le rôle global
+- `GET /api/users/projects/:id/members` - Membres d'un projet
+- `POST /api/users/projects/:id/members` - Ajouter un membre
+- `POST /api/users/projects/:id/invite` - Inviter par email
+- `PATCH /api/users/projects/:projectId/members/:memberId` - Modifier rôle membre
+- `DELETE /api/users/projects/:projectId/members/:memberId` - Retirer membre
 
-## 🎨 Fonctionnalités Clés
+### Règles SEO
+- `GET /api/rules` - Liste des règles
+- `POST /api/rules` - Créer/Modifier une règle
+- `POST /api/rules/batch` - Mise à jour en masse
 
-### Gestion Intelligente des Mots-Clés
-L'application applique les mots-clés en gras avec une logique intelligente :
-- Les expressions longues sont traitées en priorité
-- Exemple : "hôtel en Bretagne bord de mer" sera mis en gras comme un bloc complet, même si "hôtel en Bretagne" est aussi un mot-clé
+## Base de Données
 
-### Auto-Sauvegarde
-- Sauvegarde automatique toutes les 30 secondes
-- Sauvegarde manuelle avec confirmation
-- Aucune perte de données en cas de fermeture accidentelle
+### Tables principales
 
-### Suggestions Intelligentes
-- Analyse du contenu pour extraire les mots les plus fréquents
-- Génération de titres optimisés SEO
-- Meta descriptions respectant les bonnes pratiques (150-160 caractères)
+**`users`** - Comptes utilisateurs
+- `id`, `email`, `password`, `role` (super_admin/admin/user)
 
-## 🔒 Sécurité
+**`projects`** - Projets pour organiser les articles
+- `id`, `user_id`, `name`, `description`, `color`
 
-- Authentification requise pour accéder aux fonctionnalités
-- Routes protégées avec redirection automatique
-- Données utilisateur isolées par email
-- Stockage local sécurisé
+**`project_members`** - Membres d'un projet
+- `id`, `project_id`, `user_id`, `role` (owner/admin/member)
 
-## 🚧 Scripts Disponibles
+**`project_invitations`** - Invitations en attente
+- `id`, `project_id`, `email`, `role`, `token`
+
+**`articles`** - Articles SEO
+- `id`, `user_id`, `project_id`, `article_name`, `title`, `content`, `seo_score`...
+
+**`rules`** - Règles SEO personnalisables
+- `id`, `user_id`, `rule_id`, `enabled`, `min_value`, `max_value`
+
+## Permissions
+
+| Action | super_admin | admin (global) | owner (projet) | admin (projet) | member |
+|--------|-------------|----------------|----------------|----------------|--------|
+| Page Admin | Oui | Oui (limité) | Non | Non | Non |
+| Voir tous projets | Oui | Non | Non | Non | Non |
+| Modifier projet | Oui | Si owner | Oui | Oui | Non |
+| Supprimer projet | Oui | Si owner | Oui | Non | Non |
+| Gérer membres | Oui | Si owner | Oui | Oui | Non |
+| Voir articles projet | Oui | Oui | Oui | Oui | Oui |
+
+## Scripts Disponibles
 
 ### Frontend (racine)
 
@@ -318,60 +300,19 @@ npm run lint         # Linter le code avec ESLint
 ```bash
 npm run dev          # Lancer avec nodemon (auto-reload)
 npm start            # Lancer en production
-npm run migrate      # Créer les tables (alternative)
 ```
 
-## 🌐 API Endpoints
+## Déploiement
 
-### Authentification
-- `POST /api/auth/register` - Inscription
-- `POST /api/auth/login` - Connexion
-- `POST /api/auth/reset-password` - Réinitialiser mot de passe
-- `GET /api/auth/me` - Utilisateur actuel (protégé)
+Voir `docs/PRODUCTION_ENV.md` pour la configuration de production avec :
+- **Frontend** : Vercel
+- **Backend** : Railway
+- **Database** : Supabase
 
-### Articles (routes protégées)
-- `GET /api/articles` - Liste des articles
-- `GET /api/articles/:id` - Détails d'un article
-- `POST /api/articles` - Créer un article
-- `PUT /api/articles/:id` - Modifier un article
-- `DELETE /api/articles/:id` - Supprimer un article
-
-### Règles SEO (routes protégées)
-- `GET /api/rules` - Liste des règles
-- `POST /api/rules` - Créer/Modifier une règle
-- `POST /api/rules/batch` - Mise à jour en masse
-
-## 🗄️ Base de Données
-
-### Schéma PostgreSQL
-
-**Table `users`**
-- Stockage des comptes utilisateurs
-- Mots de passe hashés avec bcrypt
-- Authentification JWT
-
-**Table `articles`**
-- Articles SEO par utilisateur
-- Contenu, mots-clés, meta descriptions
-- Statistiques (nombre de mots, statut)
-
-**Table `rules`**
-- Règles SEO personnalisables par utilisateur
-- Paramètres min/max configurables
-- Activation/désactivation individuelle
-
-## 📄 Licence
+## Licence
 
 Ce projet est sous licence MIT.
 
-## 👥 Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
-
-## 📧 Contact
-
-Pour toute question ou suggestion, n'hésitez pas à me contacter.
-
 ---
 
-**Développé avec ❤️ et Claude Sonnet 4.5**
+**Développé avec Claude**

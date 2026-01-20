@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Redaction from './pages/Redaction';
 import Regles from './pages/Regles';
 import Projects from './pages/Projects';
+import Admin from './pages/Admin';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -56,6 +57,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Projects />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
             </ProtectedRoute>
           }
         />

@@ -2,7 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Helper function to get auth token
 const getAuthToken = () => {
-  const user = localStorage.getItem('user');
+  const user = sessionStorage.getItem('user');
   if (user) {
     try {
       const userData = JSON.parse(user);
@@ -16,7 +16,7 @@ const getAuthToken = () => {
 
 // Helper function to handle 401 errors (token expired/invalid)
 const handleUnauthorized = () => {
-  localStorage.removeItem('user');
+  sessionStorage.removeItem('user');
   // Rediriger vers la page de connexion
   window.location.href = '/';
 };
@@ -137,6 +137,52 @@ export const projectsAPI = {
 
   delete: async (id) => {
     return fetchWithAuth(`/projects/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Users API (admin)
+export const usersAPI = {
+  getAll: async () => {
+    return fetchWithAuth('/users');
+  },
+
+  updateRole: async (userId, role) => {
+    return fetchWithAuth(`/users/${userId}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  // Project members
+  getProjectMembers: async (projectId) => {
+    return fetchWithAuth(`/users/projects/${projectId}/members`);
+  },
+
+  addProjectMember: async (projectId, userId, role = 'member') => {
+    return fetchWithAuth(`/users/projects/${projectId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    });
+  },
+
+  inviteToProject: async (projectId, email, role = 'member') => {
+    return fetchWithAuth(`/users/projects/${projectId}/invite`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+  },
+
+  updateProjectMemberRole: async (projectId, memberId, role) => {
+    return fetchWithAuth(`/users/projects/${projectId}/members/${memberId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  removeProjectMember: async (projectId, memberId) => {
+    return fetchWithAuth(`/users/projects/${projectId}/members/${memberId}`, {
       method: 'DELETE',
     });
   },

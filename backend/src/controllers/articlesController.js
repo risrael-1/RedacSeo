@@ -1,22 +1,70 @@
 import { supabase } from '../config/supabase.js';
 
-// Get all articles for a user
+// Get all articles for a user (including articles from projects they're members of)
 export const getArticles = async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const { data: articles, error } = await supabase
-      .from('articles')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
+    // Get user's role
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
 
-    if (error) {
-      console.error('Get articles error:', error);
-      return res.status(500).json({ error: 'Failed to fetch articles' });
+    let articles = [];
+
+    if (currentUser?.role === 'super_admin') {
+      // Super admin sees ALL articles
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('Get articles error:', error);
+        return res.status(500).json({ error: 'Failed to fetch articles' });
+      }
+      articles = data || [];
+    } else {
+      // Get user's own articles
+      const { data: ownArticles } = await supabase
+        .from('articles')
+        .select('*')
+        .eq('user_id', userId);
+
+      // Get project IDs where user is a member
+      const { data: memberProjects } = await supabase
+        .from('project_members')
+        .select('project_id')
+        .eq('user_id', userId);
+
+      const projectIds = memberProjects?.map(pm => pm.project_id) || [];
+
+      // Get articles from those projects
+      let projectArticles = [];
+      if (projectIds.length > 0) {
+        const { data: projArticles } = await supabase
+          .from('articles')
+          .select('*')
+          .in('project_id', projectIds);
+        projectArticles = projArticles || [];
+      }
+
+      // Combine and deduplicate
+      const articleMap = new Map();
+      (ownArticles || []).forEach(a => articleMap.set(a.id, a));
+      projectArticles.forEach(a => {
+        if (!articleMap.has(a.id)) {
+          articleMap.set(a.id, a);
+        }
+      });
+
+      articles = Array.from(articleMap.values());
+      articles.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
     }
 
-    res.json({ articles: articles || [] });
+    res.json({ articles });
   } catch (error) {
     console.error('Get articles error:', error);
     res.status(500).json({ error: 'Internal server error' });

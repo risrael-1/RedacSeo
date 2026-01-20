@@ -79,3 +79,62 @@
 .logout-button:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* Admin link styling */
+.nav-link.admin-link {
+  background: rgba(255, 215, 0, 0.2);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+}
+
+.nav-link.admin-link:hover {
+  background: rgba(255, 215, 0, 0.3);
+}
+
+.nav-link.admin-link.active {
+  background: rgba(255, 215, 0, 0.4);
+}
+
+/* User role badge */
+.user-role-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.user-role-badge.super {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.4) 0%, rgba(255, 165, 0, 0.4) 100%);
+  border-color: rgba(255, 215, 0, 0.6);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .navbar-content {
+    padding: 0 1rem;
+  }
+
+  .navbar-left {
+    gap: 1.5rem;
+  }
+
+  .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-links {
+    display: none;
+  }
+
+  .user-email {
+    display: none;
+  }
+
+  .user-role-badge {
+    display: none;
+  }
+}
