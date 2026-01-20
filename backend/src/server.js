@@ -5,6 +5,7 @@ import authRoutes from './routes/authRoutes.js';
 import articlesRoutes from './routes/articlesRoutes.js';
 import projectsRoutes from './routes/projectsRoutes.js';
 import seoCriteriaRoutes from './routes/seoCriteriaRoutes.js';
+import usersRoutes from './routes/usersRoutes.js';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/articles', articlesRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/seo-criteria', seoCriteriaRoutes);
+app.use('/api/users', usersRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

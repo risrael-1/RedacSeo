@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
 
 const Navbar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -44,10 +44,23 @@ const Navbar = () => {
             >
               Règles SEO
             </Link>
+            {isAdmin() && (
+              <Link
+                to="/admin"
+                className={`nav-link admin-link ${isActive('/admin') ? 'active' : ''}`}
+              >
+                Admin
+              </Link>
+            )}
           </div>
         </div>
         <div className="navbar-right">
           <span className="user-email">{user?.email}</span>
+          {user?.role && user.role !== 'user' && (
+            <span className={`user-role-badge ${user.role === 'super_admin' ? 'super' : ''}`}>
+              {user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+            </span>
+          )}
           <button onClick={handleLogout} className="logout-button">
             Déconnexion
           </button>

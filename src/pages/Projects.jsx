@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../context/ProjectsContext';
 import { useArticles } from '../context/ArticlesContext';
+import { useAuth } from '../context/AuthContext';
+import { usersAPI } from '../services/api';
 import Navbar from '../components/Navbar';
 import './Projects.css';
 
@@ -9,6 +11,7 @@ const Projects = () => {
   const navigate = useNavigate();
   const { projects, loading, loadProjects, createProject, updateProject, deleteProject } = useProjects();
   const { articles, loadArticle } = useArticles();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [formData, setFormData] = useState({
@@ -22,6 +25,16 @@ const Projects = () => {
   const [projectToDelete, setProjectToDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);
+
+  // États pour la gestion des membres
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [membersProject, setMembersProject] = useState(null);
+  const [projectMembers, setProjectMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('member');
+  const [inviteError, setInviteError] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
 
   // Filtrer les projets selon la recherche
   const filteredProjects = projects.filter(project =>
@@ -39,6 +52,85 @@ const Projects = () => {
   const handleArticleClick = (articleId) => {
     loadArticle(articleId);
     navigate('/redaction');
+  };
+
+  // Vérifier si l'utilisateur peut gérer les membres d'un projet
+  const canManageMembers = (project) => {
+    if (isSuperAdmin()) return true;
+    if (project.user_id === user?.id) return true; // Propriétaire
+    if (project.my_role === 'owner' || project.my_role === 'admin') return true;
+    return false;
+  };
+
+  // Ouvrir la modal des membres
+  const handleOpenMembersModal = async (project) => {
+    setMembersProject(project);
+    setShowMembersModal(true);
+    setInviteEmail('');
+    setInviteRole('member');
+    setInviteError('');
+    setInviteSuccess('');
+    await loadProjectMembers(project.id);
+  };
+
+  // Charger les membres du projet
+  const loadProjectMembers = async (projectId) => {
+    try {
+      setLoadingMembers(true);
+      const response = await usersAPI.getProjectMembers(projectId);
+      setProjectMembers(response.members || []);
+    } catch (err) {
+      console.error('Error loading members:', err);
+      setProjectMembers([]);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  // Inviter un utilisateur
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) {
+      setInviteError('L\'email est requis');
+      return;
+    }
+
+    try {
+      setInviteError('');
+      const response = await usersAPI.inviteToProject(membersProject.id, inviteEmail.trim(), inviteRole);
+      setInviteSuccess(response.userExists
+        ? 'Utilisateur ajouté au projet'
+        : 'Invitation envoyée. L\'utilisateur sera ajouté lors de son inscription.');
+      setInviteEmail('');
+      setInviteRole('member');
+      await loadProjectMembers(membersProject.id);
+      await loadProjects(); // Recharger pour mettre à jour le compteur
+    } catch (err) {
+      setInviteError(err.message || 'Erreur lors de l\'invitation');
+    }
+  };
+
+  // Changer le rôle d'un membre
+  const handleChangeMemberRole = async (memberId, newRole) => {
+    try {
+      await usersAPI.updateProjectMemberRole(membersProject.id, memberId, newRole);
+      await loadProjectMembers(membersProject.id);
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
+  };
+
+  // Retirer un membre
+  const handleRemoveMember = async (memberId, memberEmail) => {
+    if (!confirm(`Retirer ${memberEmail} du projet ?`)) return;
+
+    try {
+      await usersAPI.removeProjectMember(membersProject.id, memberId);
+      await loadProjectMembers(membersProject.id);
+      await loadProjects();
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
   };
 
   // Recharger les projets quand on arrive sur la page
@@ -188,7 +280,16 @@ const Projects = () => {
                       style={{ backgroundColor: project.color }}
                     ></div>
                     <div className="project-card-content">
-                      <h3 className="project-name">{project.name}</h3>
+                      <div className="project-card-header">
+                        <h3 className="project-name">{project.name}</h3>
+                        {project.my_role && (
+                          <span className={`project-role-badge ${project.my_role}`}>
+                            {project.my_role === 'owner' ? 'Propriétaire' :
+                             project.my_role === 'admin' ? 'Admin' :
+                             project.my_role === 'super_admin' ? 'Super Admin' : 'Membre'}
+                          </span>
+                        )}
+                      </div>
                       {project.description && (
                         <p className="project-description">{project.description}</p>
                       )}
@@ -196,8 +297,21 @@ const Projects = () => {
                         <span className="project-stat">
                           {project.article_count || 0} article(s)
                         </span>
+                        {project.member_count > 1 && (
+                          <span className="project-stat project-stat-members">
+                            {project.member_count} membre(s)
+                          </span>
+                        )}
                       </div>
                       <div className="project-actions">
+                        {canManageMembers(project) && (
+                          <button
+                            className="btn-members"
+                            onClick={(e) => { e.stopPropagation(); handleOpenMembersModal(project); }}
+                          >
+                            Membres
+                          </button>
+                        )}
                         <button
                           className="btn-edit"
                           onClick={(e) => { e.stopPropagation(); handleOpenModal(project); }}
@@ -366,6 +480,88 @@ const Projects = () => {
                 <button className="btn-confirm-delete" onClick={handleConfirmDelete}>
                   Supprimer
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de gestion des membres */}
+        {showMembersModal && membersProject && (
+          <div className="modal-overlay" onClick={() => setShowMembersModal(false)}>
+            <div className="modal-content members-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Membres de "{membersProject.name}"</h2>
+                <button className="modal-close" onClick={() => setShowMembersModal(false)}>
+                  ×
+                </button>
+              </div>
+
+              {/* Formulaire d'invitation */}
+              <form onSubmit={handleInvite} className="invite-form">
+                <h3>Inviter un utilisateur</h3>
+                <div className="invite-form-row">
+                  <input
+                    type="email"
+                    placeholder="Email de l'utilisateur"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="invite-email-input"
+                  />
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="invite-role-select"
+                  >
+                    <option value="member">Membre</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button type="submit" className="btn-invite">
+                    Inviter
+                  </button>
+                </div>
+                {inviteError && <div className="invite-error">{inviteError}</div>}
+                {inviteSuccess && <div className="invite-success">{inviteSuccess}</div>}
+              </form>
+
+              {/* Liste des membres */}
+              <div className="members-list">
+                <h3>Membres actuels</h3>
+                {loadingMembers ? (
+                  <div className="members-loading">Chargement...</div>
+                ) : projectMembers.length === 0 ? (
+                  <div className="members-empty">Aucun membre</div>
+                ) : (
+                  <div className="members-table">
+                    {projectMembers.map((member) => (
+                      <div key={member.id} className="member-row">
+                        <div className="member-info">
+                          <span className="member-email">{member.email}</span>
+                          <span className={`member-role-badge ${member.role}`}>
+                            {member.role === 'owner' ? 'Propriétaire' : member.role === 'admin' ? 'Admin' : 'Membre'}
+                          </span>
+                        </div>
+                        {member.role !== 'owner' && (
+                          <div className="member-actions">
+                            <select
+                              value={member.role}
+                              onChange={(e) => handleChangeMemberRole(member.id, e.target.value)}
+                              className="member-role-select"
+                            >
+                              <option value="member">Membre</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            <button
+                              className="btn-remove-member"
+                              onClick={() => handleRemoveMember(member.id, member.email)}
+                            >
+                              Retirer
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -3,9 +3,9 @@ import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
 
 // Generate JWT token
-const generateToken = (userId, email) => {
+const generateToken = (userId, email, role) => {
   return jwt.sign(
-    { userId, email },
+    { userId, email, role },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
@@ -38,7 +38,7 @@ export const register = async (req, res) => {
     const { data: newUser, error } = await supabase
       .from('users')
       .insert([
-        { email, password: hashedPassword }
+        { email, password: hashedPassword, role: 'user' }
       ])
       .select()
       .single();
@@ -48,15 +48,43 @@ export const register = async (req, res) => {
       return res.status(500).json({ error: 'Failed to create user' });
     }
 
+    // Check for pending invitations and add user to projects
+    const { data: invitations } = await supabase
+      .from('project_invitations')
+      .select('*')
+      .eq('email', email)
+      .gt('expires_at', new Date().toISOString());
+
+    if (invitations && invitations.length > 0) {
+      for (const invitation of invitations) {
+        await supabase
+          .from('project_members')
+          .insert([{
+            project_id: invitation.project_id,
+            user_id: newUser.id,
+            role: invitation.role,
+            invited_by: invitation.invited_by,
+            accepted_at: new Date()
+          }]);
+      }
+
+      // Delete processed invitations
+      await supabase
+        .from('project_invitations')
+        .delete()
+        .eq('email', email);
+    }
+
     // Generate token
-    const token = generateToken(newUser.id, newUser.email);
+    const token = generateToken(newUser.id, newUser.email, newUser.role || 'user');
 
     res.status(201).json({
       message: 'User registered successfully',
       token,
       user: {
         id: newUser.id,
-        email: newUser.email
+        email: newUser.email,
+        role: newUser.role || 'user'
       }
     });
   } catch (error) {
@@ -93,14 +121,15 @@ export const login = async (req, res) => {
     }
 
     // Generate token
-    const token = generateToken(user.id, user.email);
+    const token = generateToken(user.id, user.email, user.role || 'user');
 
     res.json({
       message: 'Login successful',
       token,
       user: {
         id: user.id,
-        email: user.email
+        email: user.email,
+        role: user.role || 'user'
       }
     });
   } catch (error) {
@@ -154,7 +183,7 @@ export const getCurrentUser = async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, created_at')
+      .select('id, email, role, created_at')
       .eq('id', req.user.userId)
       .single();
 
@@ -162,7 +191,7 @@ export const getCurrentUser = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user });
+    res.json({ user: { ...user, role: user.role || 'user' } });
   } catch (error) {
     console.error('Get current user error:', error);
     res.status(500).json({ error: 'Internal server error' });

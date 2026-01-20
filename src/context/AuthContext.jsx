@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user is already logged in on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
+    const storedUser = sessionStorage.getItem('user');
     if (storedUser) {
       try {
         const userData = JSON.parse(storedUser);
@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Failed to parse stored user:', error);
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('user');
       }
     }
     setLoading(false);
@@ -36,8 +36,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authAPI.register(email, password);
 
-      // Store token and user info
-      localStorage.setItem('user', JSON.stringify({
+      // Store token and user info in sessionStorage (per-tab, cleared on close)
+      sessionStorage.setItem('user', JSON.stringify({
         token: response.token,
         user: response.user
       }));
@@ -55,8 +55,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authAPI.login(email, password);
 
-      // Store token and user info
-      localStorage.setItem('user', JSON.stringify({
+      // Store token and user info in sessionStorage (per-tab, cleared on close)
+      sessionStorage.setItem('user', JSON.stringify({
         token: response.token,
         user: response.user
       }));
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
   };
@@ -86,6 +86,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Helper functions for role checking
+  const isSuperAdmin = () => user?.role === 'super_admin';
+  const isAdmin = () => user?.role === 'admin' || user?.role === 'super_admin';
+  const hasRole = (role) => user?.role === role;
+
   return (
     <AuthContext.Provider value={{
       isAuthenticated,
@@ -94,7 +99,10 @@ export const AuthProvider = ({ children }) => {
       login,
       logout,
       register,
-      resetPassword
+      resetPassword,
+      isSuperAdmin,
+      isAdmin,
+      hasRole
     }}>
       {children}
     </AuthContext.Provider>
