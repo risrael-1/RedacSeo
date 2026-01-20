@@ -62,6 +62,22 @@ const Projects = () => {
     return false;
   };
 
+  // Vérifier si l'utilisateur peut modifier un projet
+  const canEditProject = (project) => {
+    if (isSuperAdmin()) return true;
+    if (project.user_id === user?.id) return true; // Propriétaire
+    if (project.my_role === 'owner' || project.my_role === 'admin') return true;
+    return false;
+  };
+
+  // Vérifier si l'utilisateur peut supprimer un projet (plus restrictif)
+  const canDeleteProject = (project) => {
+    if (isSuperAdmin()) return true;
+    if (project.user_id === user?.id) return true; // Propriétaire
+    if (project.my_role === 'owner') return true;
+    return false; // Les admins de projet ne peuvent pas supprimer
+  };
+
   // Ouvrir la modal des membres
   const handleOpenMembersModal = async (project) => {
     setMembersProject(project);
@@ -312,18 +328,22 @@ const Projects = () => {
                             Membres
                           </button>
                         )}
-                        <button
-                          className="btn-edit"
-                          onClick={(e) => { e.stopPropagation(); handleOpenModal(project); }}
-                        >
-                          Modifier
-                        </button>
-                        <button
-                          className="btn-delete"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteClick(project); }}
-                        >
-                          Supprimer
-                        </button>
+                        {canEditProject(project) && (
+                          <button
+                            className="btn-edit"
+                            onClick={(e) => { e.stopPropagation(); handleOpenModal(project); }}
+                          >
+                            Modifier
+                          </button>
+                        )}
+                        {canDeleteProject(project) && (
+                          <button
+                            className="btn-delete"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(project); }}
+                          >
+                            Supprimer
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
