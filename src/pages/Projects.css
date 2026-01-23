@@ -384,10 +384,20 @@
   cursor: pointer;
 }
 
-.color-value {
-  color: #666;
-  font-size: 0.95rem;
+.color-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
   font-family: monospace;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
+
+.color-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .error-message {

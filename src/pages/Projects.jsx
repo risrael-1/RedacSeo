@@ -458,7 +458,24 @@ const Projects = () => {
                         setFormData({ ...formData, color: e.target.value })
                       }
                     />
-                    <span className="color-value">{formData.color}</span>
+                    <input
+                      type="text"
+                      className="color-input"
+                      value={formData.color}
+                      onChange={(e) => {
+                        let value = e.target.value;
+                        // Ajouter # si manquant
+                        if (value && !value.startsWith('#')) {
+                          value = '#' + value;
+                        }
+                        // Valider le format hex
+                        if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
+                          setFormData({ ...formData, color: value });
+                        }
+                      }}
+                      placeholder="#667eea"
+                      maxLength={7}
+                    />
                   </div>
                 </div>
 
