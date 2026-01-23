@@ -128,7 +128,30 @@ CREATE INDEX IF NOT EXISTS idx_project_invitations_token ON project_invitations(
 CREATE INDEX IF NOT EXISTS idx_project_invitations_email ON project_invitations(email);
 
 -- ============================================
--- 5. Migration des donnees existantes
+-- 5. Criteres SEO personnalisables
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS seo_criteria (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  criterion_id VARCHAR(100) NOT NULL,
+  label VARCHAR(255) NOT NULL,
+  description TEXT,
+  icon VARCHAR(10) DEFAULT '📝',
+  max_points INTEGER DEFAULT 10,
+  enabled BOOLEAN DEFAULT true,
+  check_type VARCHAR(50) NOT NULL,
+  min_value NUMERIC,
+  max_value NUMERIC,
+  target_value NUMERIC,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, criterion_id)
+);
+CREATE INDEX IF NOT EXISTS idx_seo_criteria_user_id ON seo_criteria(user_id);
+
+-- ============================================
+-- 6. Migration des donnees existantes
 -- ============================================
 
 -- Migrer les projets existants - le createur devient owner

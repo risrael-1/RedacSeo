@@ -46,8 +46,15 @@ export const ProjectsProvider = ({ children }) => {
   const createProject = async (projectData) => {
     try {
       const response = await projectsAPI.create(projectData);
-      setProjects((prev) => [response.project, ...prev]);
-      return { success: true, project: response.project };
+      // Ajouter les valeurs par défaut pour les nouveaux projets
+      const newProject = {
+        ...response.project,
+        article_count: 0,
+        member_count: 1,
+        my_role: 'owner'
+      };
+      setProjects((prev) => [newProject, ...prev]);
+      return { success: true, project: newProject };
     } catch (err) {
       console.error('Failed to create project:', err);
       return { success: false, error: err.message };
@@ -58,7 +65,17 @@ export const ProjectsProvider = ({ children }) => {
     try {
       const response = await projectsAPI.update(id, projectData);
       setProjects((prev) =>
-        prev.map((project) => (project.id === id ? response.project : project))
+        prev.map((project) => {
+          if (project.id === id) {
+            // Fusionner les données existantes avec les nouvelles
+            // pour conserver article_count, member_count, my_role, etc.
+            return {
+              ...project,
+              ...response.project
+            };
+          }
+          return project;
+        })
       );
       return { success: true, project: response.project };
     } catch (err) {
