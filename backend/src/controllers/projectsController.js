@@ -70,6 +70,29 @@ export const getProjects = async (req, res) => {
         .select('*')
         .eq('user_id', userId);
 
+      // Auto-fix: ensure owner is in project_members for all owned projects
+      for (const project of (ownedProjects || [])) {
+        const { data: existingMembership } = await supabase
+          .from('project_members')
+          .select('id')
+          .eq('project_id', project.id)
+          .eq('user_id', userId)
+          .single();
+
+        if (!existingMembership) {
+          // Owner is missing from project_members, add them
+          await supabase
+            .from('project_members')
+            .insert([{
+              project_id: project.id,
+              user_id: userId,
+              role: 'owner',
+              accepted_at: new Date()
+            }]);
+          console.log(`Auto-fixed: Added owner ${userId} to project_members for project ${project.id}`);
+        }
+      }
+
       // Get projects user is a member of
       const { data: memberProjects } = await supabase
         .from('project_members')
@@ -79,16 +102,20 @@ export const getProjects = async (req, res) => {
         `)
         .eq('user_id', userId);
 
-      // Combine and deduplicate
+      // Combine and deduplicate - prioritize role from project_members
       const projectMap = new Map();
 
-      (ownedProjects || []).forEach(p => {
-        projectMap.set(p.id, { ...p, my_role: 'owner' });
+      // First add from memberProjects (has the correct role)
+      (memberProjects || []).forEach(pm => {
+        if (pm.project) {
+          projectMap.set(pm.project.id, { ...pm.project, my_role: pm.role });
+        }
       });
 
-      (memberProjects || []).forEach(pm => {
-        if (pm.project && !projectMap.has(pm.project.id)) {
-          projectMap.set(pm.project.id, { ...pm.project, my_role: pm.role });
+      // Then add owned projects that might not be in memberProjects yet
+      (ownedProjects || []).forEach(p => {
+        if (!projectMap.has(p.id)) {
+          projectMap.set(p.id, { ...p, my_role: 'owner' });
         }
       });
 
@@ -177,7 +204,7 @@ export const createProject = async (req, res) => {
       return res.status(500).json({ error: 'Failed to create project' });
     }
 
-    // Add creator as owner in project_members
+    // Add creator as owner in project_members - this is critical
     const { error: memberError } = await supabase
       .from('project_members')
       .insert([{
@@ -189,7 +216,9 @@ export const createProject = async (req, res) => {
 
     if (memberError) {
       console.error('Add owner to project_members error:', memberError);
-      // Project was created but member wasn't added - not critical
+      // If member insert failed, delete the project and return error
+      await supabase.from('projects').delete().eq('id', project.id);
+      return res.status(500).json({ error: 'Failed to create project membership' });
     }
 
     res.status(201).json({
