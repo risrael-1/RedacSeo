@@ -177,6 +177,21 @@ export const createProject = async (req, res) => {
       return res.status(500).json({ error: 'Failed to create project' });
     }
 
+    // Add creator as owner in project_members
+    const { error: memberError } = await supabase
+      .from('project_members')
+      .insert([{
+        project_id: project.id,
+        user_id: userId,
+        role: 'owner',
+        accepted_at: new Date()
+      }]);
+
+    if (memberError) {
+      console.error('Add owner to project_members error:', memberError);
+      // Project was created but member wasn't added - not critical
+    }
+
     res.status(201).json({
       message: 'Project created successfully',
       project
