@@ -1,3 +1,5 @@
+import InteractivePreview from './InteractivePreview';
+
 const ContentEditor = ({
   content,
   onContentChange,
@@ -55,13 +57,13 @@ const ContentEditor = ({
         </div>
         <div className="content-info">
           {showHtmlPreview
-            ? 'Aperçu du rendu HTML de votre article.'
+            ? 'Cliquez sur un élément (gras, H1, H2, H3) pour le modifier.'
             : 'Collez votre article ici. Les mots-clés seront automatiquement mis en gras.'}
         </div>
         {showHtmlPreview ? (
-          <div
-            className="html-preview"
-            dangerouslySetInnerHTML={{ __html: content || '<p style="color: #999;">Aucun contenu à afficher</p>' }}
+          <InteractivePreview
+            content={content}
+            onContentChange={onContentChange}
           />
         ) : (
           <textarea

@@ -194,19 +194,52 @@ const Redaction = () => {
     const textarea = document.getElementById('content-editor');
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
+
+    // Mapping des tags
+    const tagMap = {
+      'bold': 'strong',
+      'h1': 'h1',
+      'h2': 'h2',
+      'h3': 'h3'
+    };
+    const htmlTag = tagMap[tag];
+    if (!htmlTag) return;
+
+    const openTag = `<${htmlTag}>`;
+    const closeTag = `</${htmlTag}>`;
+
+    // Vérifier si la sélection est déjà entourée de la balise
+    const beforeSelection = content.substring(0, start);
+    const afterSelection = content.substring(end);
     const selectedText = content.substring(start, end);
 
-    let newText = '';
-    if (tag === 'bold') {
-      newText = content.substring(0, start) + `<strong>${selectedText}</strong>` + content.substring(end);
-    } else if (tag === 'h1') {
-      newText = content.substring(0, start) + `<h1>${selectedText}</h1>` + content.substring(end);
-    } else if (tag === 'h2') {
-      newText = content.substring(0, start) + `<h2>${selectedText}</h2>` + content.substring(end);
-    } else if (tag === 'h3') {
-      newText = content.substring(0, start) + `<h3>${selectedText}</h3>` + content.substring(end);
+    // Cas 1: Le texte sélectionné contient lui-même les balises (ex: "<strong>texte</strong>")
+    const wrappedRegex = new RegExp(`^<${htmlTag}>(.+)</${htmlTag}>$`, 's');
+    const wrappedMatch = selectedText.match(wrappedRegex);
+    if (wrappedMatch) {
+      // Retirer les balises du texte sélectionné
+      const newText = beforeSelection + wrappedMatch[1] + afterSelection;
+      setContent(newText);
+      markAsModified();
+      return;
     }
 
+    // Cas 2: Les balises sont juste avant et après la sélection
+    const openTagLength = openTag.length;
+    const closeTagLength = closeTag.length;
+    const textBeforeOpen = content.substring(start - openTagLength, start);
+    const textAfterClose = content.substring(end, end + closeTagLength);
+
+    if (textBeforeOpen === openTag && textAfterClose === closeTag) {
+      // Retirer les balises autour de la sélection
+      const newText = content.substring(0, start - openTagLength) + selectedText + content.substring(end + closeTagLength);
+      setContent(newText);
+      markAsModified();
+      return;
+    }
+
+    // Sinon, ajouter les balises
+    const newText = beforeSelection + openTag + selectedText + closeTag + afterSelection;
     setContent(newText);
     markAsModified();
   };
