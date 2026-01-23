@@ -201,6 +201,10 @@
 }
 
 .project-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: auto;
   margin-bottom: 1rem;
   padding-top: 1rem;
   border-top: 1px solid #eee;
@@ -212,12 +216,6 @@
   font-weight: 600;
 }
 
-.project-stats {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
 .project-stat-members {
   color: #0891b2;
 }
@@ -225,8 +223,6 @@
 .project-actions {
   display: flex;
   gap: 0.75rem;
-  margin-top: auto;
-  padding-top: 1rem;
 }
 
 .btn-edit,
