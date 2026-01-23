@@ -463,14 +463,22 @@ const Projects = () => {
                       className="color-input"
                       value={formData.color}
                       onChange={(e) => {
-                        let value = e.target.value;
-                        // Ajouter # si manquant
-                        if (value && !value.startsWith('#')) {
-                          value = '#' + value;
+                        const value = e.target.value;
+                        // Accepter vide, # seul, ou # + caractères hex
+                        if (value === '' || value === '#' || /^#[0-9A-Fa-f]{0,6}$/.test(value)) {
+                          setFormData({ ...formData, color: value || '#' });
                         }
-                        // Valider le format hex
-                        if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
-                          setFormData({ ...formData, color: value });
+                      }}
+                      onBlur={(e) => {
+                        // Quand on quitte le champ, valider et corriger si nécessaire
+                        let value = e.target.value.trim();
+                        if (!value || value === '#') {
+                          setFormData({ ...formData, color: '#667eea' });
+                        } else if (!value.startsWith('#')) {
+                          setFormData({ ...formData, color: '#' + value });
+                        } else if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                          // Si format incomplet, compléter ou remettre défaut
+                          setFormData({ ...formData, color: '#667eea' });
                         }
                       }}
                       placeholder="#667eea"
