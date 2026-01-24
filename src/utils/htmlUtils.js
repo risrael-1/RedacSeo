@@ -402,26 +402,21 @@ export const generateFaqSchema = (htmlContent) => {
 
   // Chercher le titre FAQ (h1, h2, h3 contenant "FAQ" au début)
   const allHeadings = tempDiv.querySelectorAll('h1, h2, h3');
-  let faqStartIndex = -1;
-  let faqHeadingLevel = null;
+  let faqHeading = null;
 
   for (let i = 0; i < allHeadings.length; i++) {
     const heading = allHeadings[i];
     const text = heading.textContent.trim().toLowerCase();
     if (text.startsWith('faq') || text === 'faq' || /^faq\s*[:–\-—]?/.test(text)) {
-      faqStartIndex = i;
-      faqHeadingLevel = heading.tagName.toLowerCase();
+      faqHeading = heading;
       break;
     }
   }
 
-  if (faqStartIndex === -1) return null;
+  if (!faqHeading) return null;
 
   // Extraire les questions et réponses après le titre FAQ
   const faqs = [];
-  const faqHeading = allHeadings[faqStartIndex];
-
-  // Parcourir les éléments après le titre FAQ
   let currentElement = faqHeading.nextElementSibling;
   let currentQuestion = null;
   let currentAnswer = [];
@@ -437,42 +432,72 @@ export const generateFaqSchema = (htmlContent) => {
 
   while (currentElement) {
     const tagName = currentElement.tagName.toLowerCase();
-    const text = currentElement.textContent.trim();
 
-    // Si c'est un titre de niveau supérieur ou égal au titre FAQ, on arrête
+    // Si c'est un titre h1 ou h2, on arrête (nouvelle section)
     if (tagName === 'h1' || tagName === 'h2') {
-      // Si c'est une question (h2 après h2 FAQ ou h2 après h3 FAQ)
-      if (faqHeadingLevel === 'h3' || (faqHeadingLevel === 'h2' && tagName === 'h2')) {
-        // Sauvegarder la FAQ précédente
-        saveCurrentFaq();
-        // Vérifier si c'est une question (finit par ?)
-        if (text.endsWith('?')) {
-          currentQuestion = text;
-          currentAnswer = [];
-        } else {
-          // C'est un autre titre, on arrête la section FAQ
-          break;
-        }
-      } else {
-        break;
-      }
-    }
-    // Si c'est un h3 (généralement les questions FAQ)
-    else if (tagName === 'h3') {
-      // Sauvegarder la FAQ précédente
       saveCurrentFaq();
-      // Nouvelle question
-      currentQuestion = text;
+      break;
+    }
+
+    // Si c'est un h3, c'est potentiellement une question
+    if (tagName === 'h3') {
+      saveCurrentFaq();
+      currentQuestion = currentElement.textContent.trim();
       currentAnswer = [];
     }
-    // Si c'est un paragraphe ou autre contenu
-    else if (tagName === 'p' || tagName === 'div' || tagName === 'ul' || tagName === 'ol') {
-      if (currentQuestion) {
-        // Nettoyer le HTML pour ne garder que le texte
+    // Si c'est un paragraphe, vérifier si c'est une question en <strong> ou une réponse
+    else if (tagName === 'p') {
+      const strongElement = currentElement.querySelector('strong, b');
+
+      // Format: <p><strong>Question ?</strong><br>Réponse</p>
+      if (strongElement) {
+        const strongText = strongElement.textContent.trim();
+
+        // Si le strong contient une question (finit par ?)
+        if (strongText.endsWith('?')) {
+          // Sauvegarder la FAQ précédente
+          saveCurrentFaq();
+
+          // Nouvelle question
+          currentQuestion = strongText;
+
+          // Extraire la réponse (tout le texte après le strong/br)
+          // Cloner l'élément pour manipuler sans affecter l'original
+          const clone = currentElement.cloneNode(true);
+          const strongInClone = clone.querySelector('strong, b');
+          if (strongInClone) {
+            strongInClone.remove();
+          }
+          // Retirer les <br> au début
+          const brElements = clone.querySelectorAll('br');
+          brElements.forEach(br => br.remove());
+
+          const answerText = clone.textContent.trim();
+          if (answerText) {
+            currentAnswer = [answerText];
+          } else {
+            currentAnswer = [];
+          }
+        } else if (currentQuestion) {
+          // C'est du contenu de réponse
+          const cleanText = currentElement.textContent.trim();
+          if (cleanText) {
+            currentAnswer.push(cleanText);
+          }
+        }
+      } else if (currentQuestion) {
+        // Paragraphe sans strong = réponse à la question en cours
         const cleanText = currentElement.textContent.trim();
         if (cleanText) {
           currentAnswer.push(cleanText);
         }
+      }
+    }
+    // Autres contenus (ul, ol, div) = réponse
+    else if ((tagName === 'ul' || tagName === 'ol' || tagName === 'div') && currentQuestion) {
+      const cleanText = currentElement.textContent.trim();
+      if (cleanText) {
+        currentAnswer.push(cleanText);
       }
     }
 

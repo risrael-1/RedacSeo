@@ -25,6 +25,7 @@ const Redaction = () => {
   const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
   const [copiedField, setCopiedField] = useState(null);
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
+  const [faqSchemaError, setFaqSchemaError] = useState(null);
 
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
@@ -263,7 +264,15 @@ const Redaction = () => {
   const generateAndCopyFaqSchema = async () => {
     const schema = generateFaqSchema(content);
     if (!schema) {
-      alert('Aucune section FAQ détectée. Assurez-vous d\'avoir un titre commençant par "FAQ" suivi de questions en H3.');
+      setFaqSchemaError({
+        title: 'Aucune FAQ détectée',
+        message: 'Impossible de générer le schema.org FAQ.',
+        tips: [
+          'Ajoutez un titre contenant "FAQ" (H2 ou H3)',
+          'Format 1 : Questions en H3 suivies de paragraphes de réponse',
+          'Format 2 : <p><strong>Question ?</strong><br>Réponse</p>'
+        ]
+      });
       return;
     }
     const scriptTag = `<script type="application/ld+json">\n${JSON.stringify(schema, null, 2)}\n</script>`;
@@ -321,6 +330,27 @@ const Redaction = () => {
             confirmText="Effacer"
             cancelText="Annuler"
           />
+        )}
+
+        {faqSchemaError && (
+          <div className="faq-error-popup-overlay" onClick={() => setFaqSchemaError(null)}>
+            <div className="faq-error-popup" onClick={(e) => e.stopPropagation()}>
+              <div className="faq-error-icon">⚠️</div>
+              <h3>{faqSchemaError.title}</h3>
+              <p>{faqSchemaError.message}</p>
+              <div className="faq-error-tips">
+                <strong>Formats acceptés :</strong>
+                <ul>
+                  {faqSchemaError.tips.map((tip, index) => (
+                    <li key={index}>{tip}</li>
+                  ))}
+                </ul>
+              </div>
+              <button className="faq-error-close-btn" onClick={() => setFaqSchemaError(null)}>
+                Compris
+              </button>
+            </div>
+          </div>
         )}
 
         <div className="redaction-grid">
