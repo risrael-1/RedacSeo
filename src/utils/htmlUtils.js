@@ -42,6 +42,13 @@ export const cleanPastedHtml = (html) => {
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = html;
 
+  // Extraire et préserver les scripts JSON-LD (schema.org)
+  const jsonLdScripts = [];
+  const scripts = tempDiv.querySelectorAll('script[type="application/ld+json"]');
+  scripts.forEach(script => {
+    jsonLdScripts.push(script.outerHTML);
+  });
+
   let firstTitleFound = false;
 
   const isParagraphMostlyBold = (node) => {
@@ -292,6 +299,11 @@ export const cleanPastedHtml = (html) => {
     })
     .join('\n')
     .trim();
+
+  // Rajouter les scripts JSON-LD à la fin
+  if (jsonLdScripts.length > 0) {
+    cleanedHtml += '\n\n' + jsonLdScripts.join('\n');
+  }
 
   return cleanedHtml;
 };
