@@ -10,7 +10,8 @@ const ContentEditor = ({
   onCopyToClipboard,
   onClearContent,
   onInsertTag,
-  wordCount
+  wordCount,
+  onGenerateFaqSchema
 }) => {
   return (
     <>
@@ -26,6 +27,14 @@ const ContentEditor = ({
         </button>
         <button onClick={() => onInsertTag('h3')} className="toolbar-btn" title="Titre H3">
           H3
+        </button>
+        <div className="toolbar-separator"></div>
+        <button
+          onClick={onGenerateFaqSchema}
+          className={`toolbar-btn toolbar-btn-schema ${copiedField === 'faq-schema' ? 'copied' : ''}`}
+          title="Générer et copier le Schema.org FAQ"
+        >
+          {copiedField === 'faq-schema' ? '✓ Copié' : 'FAQ Schema'}
         </button>
       </div>
 

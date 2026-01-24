@@ -825,6 +825,28 @@
   border-color: #667eea;
 }
 
+.toolbar-separator {
+  width: 1px;
+  background: #ddd;
+  margin: 0 0.5rem;
+}
+
+.toolbar-btn-schema {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  font-size: 0.85rem;
+}
+
+.toolbar-btn-schema:hover {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+  border-color: transparent;
+}
+
+.toolbar-btn-schema.copied {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
 .results-section {
   background: white;
   padding: 2rem;

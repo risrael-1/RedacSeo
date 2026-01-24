@@ -5,7 +5,7 @@ import { useSeoCriteria } from '../context/SeoCriteriaContext';
 import Navbar from '../components/Navbar';
 import { SeoScorePanel, ArticlesSidebar, KeywordsSection, SeoFieldsSection, ContentEditor, ProjectSelect } from '../components/redaction';
 import { ConfirmPopup, SavePopup } from '../components/common';
-import { applyKeywordBold, cleanPastedHtml, convertPlainTextToHtml, getSEOScoreLevel, addFaqSchemaToContent } from '../utils/htmlUtils';
+import { applyKeywordBold, cleanPastedHtml, convertPlainTextToHtml, getSEOScoreLevel, generateFaqSchema } from '../utils/htmlUtils';
 import './Redaction.css';
 
 const Redaction = () => {
@@ -252,13 +252,24 @@ const Redaction = () => {
   const copyToClipboard = async (text, fieldName) => {
     if (!text) return;
     try {
-      let textToCopy = text;
-      // Si on copie le contenu, ajouter le schema FAQ si présent
-      if (fieldName === 'content') {
-        textToCopy = addFaqSchemaToContent(text);
-      }
-      await navigator.clipboard.writeText(textToCopy);
+      await navigator.clipboard.writeText(text);
       setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Erreur lors de la copie:', err);
+    }
+  };
+
+  const generateAndCopyFaqSchema = async () => {
+    const schema = generateFaqSchema(content);
+    if (!schema) {
+      alert('Aucune section FAQ détectée. Assurez-vous d\'avoir un titre commençant par "FAQ" suivi de questions en H3.');
+      return;
+    }
+    const scriptTag = `<script type="application/ld+json">\n${JSON.stringify(schema, null, 2)}\n</script>`;
+    try {
+      await navigator.clipboard.writeText(scriptTag);
+      setCopiedField('faq-schema');
       setTimeout(() => setCopiedField(null), 2000);
     } catch (err) {
       console.error('Erreur lors de la copie:', err);
@@ -381,6 +392,7 @@ const Redaction = () => {
               onClearContent={handleClearContent}
               onInsertTag={insertTag}
               wordCount={getWordCount()}
+              onGenerateFaqSchema={generateAndCopyFaqSchema}
             />
           </div>
 
