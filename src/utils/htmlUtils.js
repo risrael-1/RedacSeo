@@ -391,3 +391,125 @@ export const getSEOScoreLevel = (score) => {
   if (score >= 20) return { level: 'Faible', color: '#f97316' };
   return { level: 'Critique', color: '#ef4444' };
 };
+
+// Fonction pour extraire les FAQ et générer le schema.org JSON-LD
+export const generateFaqSchema = (htmlContent) => {
+  if (!htmlContent) return null;
+
+  // Créer un DOM temporaire pour parser le HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = htmlContent;
+
+  // Chercher le titre FAQ (h1, h2, h3 contenant "FAQ" au début)
+  const allHeadings = tempDiv.querySelectorAll('h1, h2, h3');
+  let faqStartIndex = -1;
+  let faqHeadingLevel = null;
+
+  for (let i = 0; i < allHeadings.length; i++) {
+    const heading = allHeadings[i];
+    const text = heading.textContent.trim().toLowerCase();
+    if (text.startsWith('faq') || text === 'faq' || /^faq\s*[:–\-—]?/.test(text)) {
+      faqStartIndex = i;
+      faqHeadingLevel = heading.tagName.toLowerCase();
+      break;
+    }
+  }
+
+  if (faqStartIndex === -1) return null;
+
+  // Extraire les questions et réponses après le titre FAQ
+  const faqs = [];
+  const faqHeading = allHeadings[faqStartIndex];
+
+  // Parcourir les éléments après le titre FAQ
+  let currentElement = faqHeading.nextElementSibling;
+  let currentQuestion = null;
+  let currentAnswer = [];
+
+  const saveCurrentFaq = () => {
+    if (currentQuestion && currentAnswer.length > 0) {
+      faqs.push({
+        question: currentQuestion,
+        answer: currentAnswer.join(' ').trim()
+      });
+    }
+  };
+
+  while (currentElement) {
+    const tagName = currentElement.tagName.toLowerCase();
+    const text = currentElement.textContent.trim();
+
+    // Si c'est un titre de niveau supérieur ou égal au titre FAQ, on arrête
+    if (tagName === 'h1' || tagName === 'h2') {
+      // Si c'est une question (h2 après h2 FAQ ou h2 après h3 FAQ)
+      if (faqHeadingLevel === 'h3' || (faqHeadingLevel === 'h2' && tagName === 'h2')) {
+        // Sauvegarder la FAQ précédente
+        saveCurrentFaq();
+        // Vérifier si c'est une question (finit par ?)
+        if (text.endsWith('?')) {
+          currentQuestion = text;
+          currentAnswer = [];
+        } else {
+          // C'est un autre titre, on arrête la section FAQ
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+    // Si c'est un h3 (généralement les questions FAQ)
+    else if (tagName === 'h3') {
+      // Sauvegarder la FAQ précédente
+      saveCurrentFaq();
+      // Nouvelle question
+      currentQuestion = text;
+      currentAnswer = [];
+    }
+    // Si c'est un paragraphe ou autre contenu
+    else if (tagName === 'p' || tagName === 'div' || tagName === 'ul' || tagName === 'ol') {
+      if (currentQuestion) {
+        // Nettoyer le HTML pour ne garder que le texte
+        const cleanText = currentElement.textContent.trim();
+        if (cleanText) {
+          currentAnswer.push(cleanText);
+        }
+      }
+    }
+
+    currentElement = currentElement.nextElementSibling;
+  }
+
+  // Sauvegarder la dernière FAQ
+  saveCurrentFaq();
+
+  if (faqs.length === 0) return null;
+
+  // Générer le JSON-LD schema.org
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map(faq => ({
+      "@type": "Question",
+      "name": faq.question,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": faq.answer
+      }
+    }))
+  };
+
+  return schema;
+};
+
+// Fonction pour ajouter le schema FAQ au contenu HTML
+export const addFaqSchemaToContent = (htmlContent) => {
+  const schema = generateFaqSchema(htmlContent);
+
+  if (!schema) return htmlContent;
+
+  const scriptTag = `<script type="application/ld+json">
+${JSON.stringify(schema, null, 2)}
+</script>`;
+
+  return htmlContent + '\n\n' + scriptTag;
+};

@@ -5,7 +5,7 @@ import { useSeoCriteria } from '../context/SeoCriteriaContext';
 import Navbar from '../components/Navbar';
 import { SeoScorePanel, ArticlesSidebar, KeywordsSection, SeoFieldsSection, ContentEditor, ProjectSelect } from '../components/redaction';
 import { ConfirmPopup, SavePopup } from '../components/common';
-import { applyKeywordBold, cleanPastedHtml, convertPlainTextToHtml, getSEOScoreLevel } from '../utils/htmlUtils';
+import { applyKeywordBold, cleanPastedHtml, convertPlainTextToHtml, getSEOScoreLevel, addFaqSchemaToContent } from '../utils/htmlUtils';
 import './Redaction.css';
 
 const Redaction = () => {
@@ -252,7 +252,12 @@ const Redaction = () => {
   const copyToClipboard = async (text, fieldName) => {
     if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      let textToCopy = text;
+      // Si on copie le contenu, ajouter le schema FAQ si présent
+      if (fieldName === 'content') {
+        textToCopy = addFaqSchemaToContent(text);
+      }
+      await navigator.clipboard.writeText(textToCopy);
       setCopiedField(fieldName);
       setTimeout(() => setCopiedField(null), 2000);
     } catch (err) {
