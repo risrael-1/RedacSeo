@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Redaction from './pages/Redaction';
 import Regles from './pages/Regles';
 import Projects from './pages/Projects';
+import Profile from './pages/Profile';
 import Admin from './pages/Admin';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -57,6 +58,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Projects />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
             </ProtectedRoute>
           }
         />
