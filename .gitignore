@@ -44,3 +44,12 @@ Thumbs.db
 
 # Claude Code history
 .claude
+
+# Testing - Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+.playwright/
+
+# Testing - Jest
+coverage/

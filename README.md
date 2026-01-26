@@ -8,6 +8,8 @@ Application web complète pour la gestion et l'optimisation de contenus SEO. Cr�
 - **Backend**: Node.js + Express API REST (port 5000)
 - **Base de données**: PostgreSQL via Supabase
 - **Authentification**: JWT (JSON Web Tokens)
+- **Tests E2E**: Playwright (22 tests)
+- **Tests API**: Jest + Supertest (22 tests)
 
 ## Fonctionnalités
 
@@ -185,7 +187,11 @@ RedacSeo/
 │   │   │   ├── projectsRoutes.js
 │   │   │   ├── usersRoutes.js
 │   │   │   └── rulesRoutes.js
+│   │   ├── app.js             # Configuration Express
 │   │   └── server.js          # Point d'entrée
+│   ├── tests/                 # Tests API (Jest)
+│   │   ├── setup.js
+│   │   └── auth.test.js       # 22 tests d'authentification
 │   ├── MIGRATIONS.sql         # Toutes les migrations SQL
 │   └── package.json
 │
@@ -209,8 +215,15 @@ RedacSeo/
 │   ├── services/
 │   │   └── api.js            # Service API REST
 │   └── App.jsx
+│
+├── tests/                     # Tests E2E (Playwright)
+│   └── e2e/
+│       ├── auth.spec.js       # Tests d'authentification (15 tests)
+│       └── user-journey.spec.js  # Parcours utilisateur (7 tests)
+│
 ├── docs/
 │   └── PRODUCTION_ENV.md     # Config production
+├── playwright.config.js      # Configuration Playwright
 ├── package.json
 └── README.md
 ```
@@ -293,6 +306,9 @@ npm run dev          # Lancer en mode développement
 npm run build        # Build pour la production
 npm run preview      # Preview du build de production
 npm run lint         # Linter le code avec ESLint
+npm test             # Lancer les tests E2E Playwright
+npm run test:ui      # Tests E2E avec interface graphique
+npm run test:headed  # Tests E2E en mode visible (non-headless)
 ```
 
 ### Backend (dossier backend/)
@@ -300,7 +316,43 @@ npm run lint         # Linter le code avec ESLint
 ```bash
 npm run dev          # Lancer avec nodemon (auto-reload)
 npm start            # Lancer en production
+npm test             # Lancer les tests API Jest
+npm run test:watch   # Tests API en mode watch
 ```
+
+## Tests
+
+### Tests E2E (Playwright)
+
+22 tests couvrant l'interface utilisateur complète :
+
+```bash
+npm test
+```
+
+**Couverture :**
+- Authentification (inscription, connexion, déconnexion)
+- Validation des formulaires
+- Protection des routes
+- Navigation entre les pages
+- Parcours utilisateur complet (inscription → suppression compte)
+
+### Tests API (Jest + Supertest)
+
+22 tests couvrant tous les endpoints d'authentification :
+
+```bash
+cd backend && npm test
+```
+
+**Couverture :**
+- POST /api/auth/register
+- POST /api/auth/login
+- GET /api/auth/me
+- POST /api/auth/change-password
+- POST /api/auth/change-email
+- DELETE /api/auth/delete-account
+- GET /api/health
 
 ## Déploiement
 
