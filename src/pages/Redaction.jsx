@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
 import { useSeoCriteria } from '../context/SeoCriteriaContext';
+import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 import Navbar from '../components/Navbar';
 import { SeoScorePanel, ArticlesSidebar, KeywordsSection, SeoFieldsSection, ContentEditor, ProjectSelect } from '../components/redaction';
 import { ConfirmPopup, SavePopup } from '../components/common';
-import { applyKeywordBold, cleanPastedHtml, convertPlainTextToHtml, getSEOScoreLevel } from '../utils/htmlUtils';
+import { applyKeywordBold, cleanPastedHtml, convertPlainTextToHtml, getSEOScoreLevel, generateFaqSchema } from '../utils/htmlUtils';
 import './Redaction.css';
 
 const Redaction = () => {
@@ -25,10 +26,14 @@ const Redaction = () => {
   const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
   const [copiedField, setCopiedField] = useState(null);
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
+  const [faqSchemaError, setFaqSchemaError] = useState(null);
+  const [faqSchemaPopup, setFaqSchemaPopup] = useState(null);
+  const [unsavedChangesPopup, setUnsavedChangesPopup] = useState(null);
 
   const { currentArticle, saveArticle, articles, loadArticle, deleteArticle, createNewArticle } = useArticles();
   const { projects } = useProjects();
   const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
+  const { markAsUnsaved, markAsSaved, registerSaveCallback } = useUnsavedChanges();
 
   const hasUserModified = useRef(false);
   const currentArticleIdRef = useRef(null);
@@ -61,7 +66,8 @@ const Redaction = () => {
 
   const markAsModified = useCallback(() => {
     hasUserModified.current = true;
-  }, []);
+    markAsUnsaved(); // Notifier le contexte global
+  }, [markAsUnsaved]);
 
   // Auto-save toutes les 30 secondes
   const performAutoSave = useCallback(() => {
@@ -94,6 +100,75 @@ const Redaction = () => {
     return () => clearInterval(interval);
   }, [performAutoSave]);
 
+  // Protection contre la perte de données (fermeture onglet/navigateur)
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUserModified.current) {
+        e.preventDefault();
+        e.returnValue = 'Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir quitter ?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Enregistrer la fonction de sauvegarde pour le contexte global
+  useEffect(() => {
+    registerSaveCallback(() => handleSave(false));
+  }, [registerSaveCallback, articleName, title, metaDescription, keyword, secondaryKeywords, content, projectId, seoFieldsEnabled]);
+
+  // Fonction pour gérer le changement d'article avec vérification des modifications
+  const handleLoadArticle = useCallback((articleId) => {
+    if (hasUserModified.current && articleId !== currentArticle?.id) {
+      setUnsavedChangesPopup({
+        targetArticleId: articleId,
+        action: 'load'
+      });
+      return;
+    }
+    loadArticle(articleId);
+  }, [currentArticle?.id, loadArticle]);
+
+  // Fonction pour gérer la création d'un nouvel article avec vérification
+  const handleCreateNewArticle = useCallback(() => {
+    if (hasUserModified.current) {
+      setUnsavedChangesPopup({
+        targetArticleId: null,
+        action: 'new'
+      });
+      return;
+    }
+    createNewArticle();
+  }, [createNewArticle]);
+
+  // Actions de la popup de modifications non sauvegardées
+  const handleUnsavedDiscard = () => {
+    hasUserModified.current = false;
+    if (unsavedChangesPopup.action === 'load') {
+      loadArticle(unsavedChangesPopup.targetArticleId);
+    } else if (unsavedChangesPopup.action === 'new') {
+      createNewArticle();
+    }
+    setUnsavedChangesPopup(null);
+  };
+
+  const handleUnsavedSave = () => {
+    handleSave(false);
+    hasUserModified.current = false;
+    if (unsavedChangesPopup.action === 'load') {
+      loadArticle(unsavedChangesPopup.targetArticleId);
+    } else if (unsavedChangesPopup.action === 'new') {
+      createNewArticle();
+    }
+    setUnsavedChangesPopup(null);
+  };
+
+  const handleUnsavedCancel = () => {
+    setUnsavedChangesPopup(null);
+  };
+
   const handleSave = (showAlert = true) => {
     if (!articleName || articleName.trim() === '') {
       setArticleNameError('Le nom de l\'article est obligatoire');
@@ -123,6 +198,7 @@ const Redaction = () => {
 
     if (article) {
       hasUserModified.current = false;
+      markAsSaved(); // Notifier le contexte global
       if (showAlert) {
         setShowSavePopup(true);
         setTimeout(() => setShowSavePopup(false), 3000);
@@ -260,6 +336,40 @@ const Redaction = () => {
     }
   };
 
+  const generateAndCopyFaqSchema = () => {
+    const schema = generateFaqSchema(content);
+    if (!schema) {
+      setFaqSchemaError({
+        title: 'Aucune FAQ détectée',
+        message: 'Impossible de générer le schema.org FAQ.',
+        tips: [
+          'Ajoutez un titre contenant "FAQ" (H2 ou H3)',
+          'Format 1 : Questions en H3 suivies de paragraphes de réponse',
+          'Format 2 : <p><strong>Question ?</strong><br>Réponse</p>'
+        ]
+      });
+      return;
+    }
+    const scriptTag = `<script type="application/ld+json">\n${JSON.stringify(schema, null, 2)}\n</script>`;
+    setFaqSchemaPopup(scriptTag);
+  };
+
+  const handleFaqSchemaValidate = () => {
+    if (faqSchemaPopup) {
+      // Ajouter le script à la fin du contenu
+      setContent(prevContent => {
+        const trimmedContent = prevContent.trimEnd();
+        return trimmedContent + '\n\n' + faqSchemaPopup;
+      });
+      markAsModified();
+      setFaqSchemaPopup(null);
+    }
+  };
+
+  const handleFaqSchemaCancel = () => {
+    setFaqSchemaPopup(null);
+  };
+
   // Calcul en temps réel du score SEO
   const seoAnalysis = useMemo(() => {
     const result = calculateScore(content, title, metaDescription, keyword, seoFieldsEnabled);
@@ -284,7 +394,7 @@ const Redaction = () => {
         <div className="redaction-header">
           <h2>Rédaction SEO</h2>
           <div className="header-buttons">
-            <button onClick={createNewArticle} className="new-article-header-btn">
+            <button onClick={handleCreateNewArticle} className="new-article-header-btn">
               + Nouvel article
             </button>
             <button onClick={() => handleSave(true)} className="save-button">
@@ -305,6 +415,79 @@ const Redaction = () => {
             confirmText="Effacer"
             cancelText="Annuler"
           />
+        )}
+
+        {faqSchemaError && (
+          <div className="faq-error-popup-overlay" onClick={() => setFaqSchemaError(null)}>
+            <div className="faq-error-popup" onClick={(e) => e.stopPropagation()}>
+              <div className="faq-error-icon">⚠️</div>
+              <h3>{faqSchemaError.title}</h3>
+              <p>{faqSchemaError.message}</p>
+              <div className="faq-error-tips">
+                <strong>Formats acceptés :</strong>
+                <ul>
+                  {faqSchemaError.tips.map((tip, index) => (
+                    <li key={index}>{tip}</li>
+                  ))}
+                </ul>
+              </div>
+              <button className="faq-error-close-btn" onClick={() => setFaqSchemaError(null)}>
+                Compris
+              </button>
+            </div>
+          </div>
+        )}
+
+        {faqSchemaPopup && (
+          <div className="faq-schema-popup-overlay" onClick={handleFaqSchemaCancel}>
+            <div className="faq-schema-popup" onClick={(e) => e.stopPropagation()}>
+              <div className="faq-schema-popup-header">
+                <h3>Schema.org FAQ</h3>
+                <button className="faq-schema-close-x" onClick={handleFaqSchemaCancel}>×</button>
+              </div>
+              <p className="faq-schema-description">
+                Vérifiez et modifiez le script si nécessaire, puis validez pour l'ajouter à la fin de votre article.
+              </p>
+              <textarea
+                className="faq-schema-textarea"
+                value={faqSchemaPopup}
+                onChange={(e) => setFaqSchemaPopup(e.target.value)}
+                spellCheck={false}
+              />
+              <div className="faq-schema-popup-actions">
+                <button className="faq-schema-cancel-btn" onClick={handleFaqSchemaCancel}>
+                  Annuler
+                </button>
+                <button className="faq-schema-validate-btn" onClick={handleFaqSchemaValidate}>
+                  Valider et ajouter
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {unsavedChangesPopup && (
+          <div className="unsaved-popup-overlay" onClick={handleUnsavedCancel}>
+            <div className="unsaved-popup" onClick={(e) => e.stopPropagation()}>
+              <div className="unsaved-popup-icon">⚠️</div>
+              <h3>Modifications non sauvegardées</h3>
+              <p>
+                Vous avez des modifications en cours sur cet article.
+                Que souhaitez-vous faire ?
+              </p>
+              <div className="unsaved-popup-actions">
+                <button className="unsaved-btn unsaved-btn-discard" onClick={handleUnsavedDiscard}>
+                  Abandonner
+                </button>
+                <button className="unsaved-btn unsaved-btn-cancel" onClick={handleUnsavedCancel}>
+                  Annuler
+                </button>
+                <button className="unsaved-btn unsaved-btn-save" onClick={handleUnsavedSave}>
+                  Sauvegarder
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="redaction-grid">
@@ -376,6 +559,7 @@ const Redaction = () => {
               onClearContent={handleClearContent}
               onInsertTag={insertTag}
               wordCount={getWordCount()}
+              onGenerateFaqSchema={generateAndCopyFaqSchema}
             />
           </div>
 
@@ -384,7 +568,7 @@ const Redaction = () => {
             <ArticlesSidebar
               articles={articles}
               currentArticle={currentArticle}
-              onLoadArticle={loadArticle}
+              onLoadArticle={handleLoadArticle}
               onDeleteArticle={deleteArticle}
             />
           </div>

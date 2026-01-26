@@ -42,7 +42,42 @@ export const cleanPastedHtml = (html) => {
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = html;
 
-  let firstTitleFound = false;
+  // Extraire et préserver les scripts JSON-LD (schema.org)
+  const jsonLdScripts = [];
+  const scripts = tempDiv.querySelectorAll('script[type="application/ld+json"]');
+  scripts.forEach(script => {
+    jsonLdScripts.push(script.outerHTML);
+    script.remove(); // Retirer du DOM pour ne pas le traiter deux fois
+  });
+
+  // Vérifier si le HTML a déjà une structure complète et propre
+  const hasProperStructure = () => {
+    const children = Array.from(tempDiv.children);
+    if (children.length === 0) return false;
+
+    // Vérifier si on a des éléments de structure sémantique au premier niveau
+    const semanticTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'blockquote'];
+    const hasSemanticElements = children.some(child => {
+      const tag = child.tagName?.toLowerCase();
+      return semanticTags.includes(tag);
+    });
+
+    // Si le premier enfant est un H1, c'est du HTML déjà structuré
+    const firstChild = children[0];
+    const firstTag = firstChild?.tagName?.toLowerCase();
+    if (firstTag === 'h1') return true;
+
+    // Si on a plusieurs éléments sémantiques, c'est du HTML structuré
+    const semanticCount = children.filter(child => {
+      const tag = child.tagName?.toLowerCase();
+      return semanticTags.includes(tag);
+    }).length;
+
+    return semanticCount >= 3 || (hasSemanticElements && children.length >= 2);
+  };
+
+  const isAlreadyStructured = hasProperStructure();
+  let firstTitleFound = isAlreadyStructured;
 
   const isParagraphMostlyBold = (node) => {
     const fullText = node.textContent.trim();
@@ -171,7 +206,20 @@ export const cleanPastedHtml = (html) => {
           case 'h6': {
             let finalTag = tagName;
             const cleanText = node.textContent.trim();
-            if (!firstTitleFound) {
+
+            // Si le contenu est déjà structuré, préserver la balise et le style existants
+            if (isAlreadyStructured) {
+              const existingStyle = node.getAttribute('style');
+              if (tagName === 'h1') {
+                // Préserver le style du H1 original ou ajouter text-align: center
+                const style = existingStyle || 'text-align: center;';
+                lines.push(`${indentStr}<h1 style="${style}">${cleanText}</h1>`);
+              } else if (tagName === 'h3') {
+                lines.push(`${indentStr}<h3 style="text-align: center;">${cleanText}</h3>`);
+              } else {
+                lines.push(`${indentStr}<${finalTag}>${cleanText}</${finalTag}>`);
+              }
+            } else if (!firstTitleFound) {
               finalTag = 'h1';
               firstTitleFound = true;
               lines.push(`${indentStr}<${finalTag} style="text-align: center;">${cleanText}</${finalTag}>`);
@@ -188,7 +236,14 @@ export const cleanPastedHtml = (html) => {
             const plainText = node.textContent.trim();
             const cleanTextContent = plainText;
 
-            if (!firstTitleFound) {
+            // Vérifier si le contenu est du HTML qui a été collé comme texte (contient des balises)
+            const looksLikeHtml = /^<(h[1-6]|p|div|ul|ol|strong|em)\s/i.test(plainText);
+
+            // Si le HTML est déjà structuré ou contient du HTML en texte, ne pas transformer les P
+            if (isAlreadyStructured || looksLikeHtml) {
+              lines.push(`${indentStr}<p style="text-align: justify;">${childContent}</p>`);
+            }
+            else if (!firstTitleFound) {
               firstTitleFound = true;
               lines.push(`${indentStr}<h1 style="text-align: center;">${cleanTextContent}</h1>`);
             }
@@ -293,18 +348,44 @@ export const cleanPastedHtml = (html) => {
     .join('\n')
     .trim();
 
+  // Rajouter les scripts JSON-LD à la fin
+  if (jsonLdScripts.length > 0) {
+    cleanedHtml += '\n\n' + jsonLdScripts.join('\n');
+  }
+
   return cleanedHtml;
 };
 
 // Fonction pour convertir du texte brut en HTML
 export const convertPlainTextToHtml = (text) => {
-  const lines = text.split('\n');
+  // Extraire et préserver les scripts JSON-LD (schema.org) du texte brut
+  const jsonLdRegex = /<script\s+type=["']application\/ld\+json["']>[\s\S]*?<\/script>/gi;
+  const jsonLdMatches = text.match(jsonLdRegex) || [];
+  // Retirer les scripts du texte pour le traitement
+  let textWithoutScripts = text.replace(jsonLdRegex, '').trim();
+
+  // Si le texte ne contient que des scripts JSON-LD, les retourner directement
+  if (!textWithoutScripts && jsonLdMatches.length > 0) {
+    return jsonLdMatches.join('\n\n');
+  }
+
+  const lines = textWithoutScripts.split('\n');
   let result = [];
   let isFirstNonEmptyLine = true;
   let currentParagraph = [];
 
+  // Convertir les marqueurs markdown **texte** en <strong>texte</strong>
+  const convertMarkdownBold = (text) => {
+    return text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  };
+
+  // Retirer les marqueurs ** pour les tests de détection
+  const stripMarkdownBold = (text) => {
+    return text.replace(/\*\*/g, '');
+  };
+
   const isTitleLine = (line) => {
-    const trimmed = line.trim();
+    const trimmed = stripMarkdownBold(line.trim());
     if (trimmed.length < 10 || trimmed.length > 100) return false;
     if (trimmed.endsWith('.') && !trimmed.endsWith('...')) return false;
     if (trimmed.endsWith(',') || trimmed.endsWith(';')) return false;
@@ -320,7 +401,7 @@ export const convertPlainTextToHtml = (text) => {
   };
 
   const isSubtitleLine = (line) => {
-    const trimmed = line.trim();
+    const trimmed = stripMarkdownBold(line.trim());
     if (trimmed.endsWith('?') && trimmed.length < 120) return true;
     if (/^(FAQ|Q:|Question)/i.test(trimmed)) return true;
     return false;
@@ -330,7 +411,7 @@ export const convertPlainTextToHtml = (text) => {
     if (currentParagraph.length > 0) {
       const paragraphText = currentParagraph.join(' ').trim();
       if (paragraphText) {
-        result.push(`<p style="text-align: justify;">${paragraphText}</p>`);
+        result.push(`<p style="text-align: justify;">${convertMarkdownBold(paragraphText)}</p>`);
       }
       currentParagraph = [];
     }
@@ -346,7 +427,7 @@ export const convertPlainTextToHtml = (text) => {
 
     if (isFirstNonEmptyLine) {
       flushParagraph();
-      result.push(`<h1 style="text-align: center;">${trimmedLine}</h1>`);
+      result.push(`<h1 style="text-align: center;">${convertMarkdownBold(trimmedLine)}</h1>`);
       isFirstNonEmptyLine = false;
       return;
     }
@@ -355,23 +436,23 @@ export const convertPlainTextToHtml = (text) => {
       flushParagraph();
       const linkMatch = trimmedLine.match(/\[(https?:\/\/[^\]]+)\](.+)/);
       if (linkMatch) {
-        result.push(`<p style="text-align: justify;"><a class="button" href="${linkMatch[1]}">${linkMatch[2].trim()}</a></p>`);
+        result.push(`<p style="text-align: justify;"><a class="button" href="${linkMatch[1]}">${convertMarkdownBold(linkMatch[2].trim())}</a></p>`);
       } else {
-        result.push(`<p style="text-align: justify;">${trimmedLine}</p>`);
+        result.push(`<p style="text-align: justify;">${convertMarkdownBold(trimmedLine)}</p>`);
       }
       return;
     }
 
     if (isSubtitleLine(trimmedLine)) {
       flushParagraph();
-      result.push(`<h3 style="text-align: justify;">${trimmedLine}</h3>`);
+      result.push(`<h3 style="text-align: justify;">${convertMarkdownBold(trimmedLine)}</h3>`);
       return;
     }
 
     const prevLine = index > 0 ? lines[index - 1].trim() : '';
     if (isTitleLine(trimmedLine) && (prevLine === '' || index < 3)) {
       flushParagraph();
-      result.push(`<h2 style="text-align: justify;">${trimmedLine}</h2>`);
+      result.push(`<h2 style="text-align: justify;">${convertMarkdownBold(trimmedLine)}</h2>`);
       return;
     }
 
@@ -380,7 +461,14 @@ export const convertPlainTextToHtml = (text) => {
 
   flushParagraph();
 
-  return result.join('\n');
+  let finalResult = result.join('\n');
+
+  // Rajouter les scripts JSON-LD à la fin
+  if (jsonLdMatches.length > 0) {
+    finalResult += '\n\n' + jsonLdMatches.join('\n');
+  }
+
+  return finalResult;
 };
 
 // Helper pour déterminer le niveau SEO
@@ -390,4 +478,172 @@ export const getSEOScoreLevel = (score) => {
   if (score >= 40) return { level: 'Moyen', color: '#eab308' };
   if (score >= 20) return { level: 'Faible', color: '#f97316' };
   return { level: 'Critique', color: '#ef4444' };
+};
+
+// Fonction pour extraire les FAQ et générer le schema.org JSON-LD
+export const generateFaqSchema = (htmlContent) => {
+  if (!htmlContent) return null;
+
+  // Créer un DOM temporaire pour parser le HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = htmlContent;
+
+  // Chercher le titre FAQ (h1, h2, h3 ou même p contenant "FAQ")
+  const allHeadings = tempDiv.querySelectorAll('h1, h2, h3');
+  let faqHeading = null;
+
+  for (let i = 0; i < allHeadings.length; i++) {
+    const heading = allHeadings[i];
+    const text = heading.textContent.trim().toLowerCase();
+    if (text.startsWith('faq') || text === 'faq' || /^faq\s*[:–\-—]?/.test(text)) {
+      faqHeading = heading;
+      break;
+    }
+  }
+
+  // Si pas trouvé dans les headings, chercher dans les paragraphes
+  if (!faqHeading) {
+    const allParagraphs = tempDiv.querySelectorAll('p');
+    for (let i = 0; i < allParagraphs.length; i++) {
+      const p = allParagraphs[i];
+      const text = p.textContent.trim().toLowerCase();
+      // Paragraphe contenant uniquement "FAQ" ou "FAQ :"
+      if (text === 'faq' || /^faq\s*[:–\-—]?\s*$/.test(text)) {
+        faqHeading = p;
+        break;
+      }
+    }
+  }
+
+  if (!faqHeading) return null;
+
+  // Extraire les questions et réponses après le titre FAQ
+  const faqs = [];
+  let currentElement = faqHeading.nextElementSibling;
+  let currentQuestion = null;
+  let currentAnswer = [];
+
+  const saveCurrentFaq = () => {
+    if (currentQuestion && currentAnswer.length > 0) {
+      faqs.push({
+        question: currentQuestion,
+        answer: currentAnswer.join(' ').trim()
+      });
+    }
+  };
+
+  while (currentElement) {
+    const tagName = currentElement.tagName.toLowerCase();
+
+    // Si c'est un titre h1 ou h2, on arrête (nouvelle section)
+    if (tagName === 'h1' || tagName === 'h2') {
+      saveCurrentFaq();
+      break;
+    }
+
+    // Si c'est un h3, c'est potentiellement une question
+    if (tagName === 'h3') {
+      saveCurrentFaq();
+      currentQuestion = currentElement.textContent.trim();
+      currentAnswer = [];
+    }
+    // Si c'est un paragraphe, vérifier si c'est une question en <strong> ou une réponse
+    else if (tagName === 'p') {
+      const strongElement = currentElement.querySelector('strong, b');
+      const paragraphText = currentElement.textContent.trim();
+
+      // Format: <p><strong>Question ?</strong><br>Réponse</p>
+      if (strongElement) {
+        const strongText = strongElement.textContent.trim();
+
+        // Si le strong contient une question (finit par ?)
+        if (strongText.endsWith('?')) {
+          // Sauvegarder la FAQ précédente
+          saveCurrentFaq();
+
+          // Nouvelle question
+          currentQuestion = strongText;
+
+          // Extraire la réponse (tout le texte après le strong/br)
+          // Cloner l'élément pour manipuler sans affecter l'original
+          const clone = currentElement.cloneNode(true);
+          const strongInClone = clone.querySelector('strong, b');
+          if (strongInClone) {
+            strongInClone.remove();
+          }
+          // Retirer les <br> au début
+          const brElements = clone.querySelectorAll('br');
+          brElements.forEach(br => br.remove());
+
+          const answerText = clone.textContent.trim();
+          if (answerText) {
+            currentAnswer = [answerText];
+          } else {
+            currentAnswer = [];
+          }
+        } else if (currentQuestion) {
+          // C'est du contenu de réponse
+          const cleanText = paragraphText;
+          if (cleanText) {
+            currentAnswer.push(cleanText);
+          }
+        }
+      }
+      // Format 3: Paragraphe simple qui finit par ? = question
+      else if (paragraphText.endsWith('?')) {
+        saveCurrentFaq();
+        currentQuestion = paragraphText;
+        currentAnswer = [];
+      }
+      // Paragraphe sans strong et sans ? = réponse à la question en cours
+      else if (currentQuestion) {
+        if (paragraphText) {
+          currentAnswer.push(paragraphText);
+        }
+      }
+    }
+    // Autres contenus (ul, ol, div) = réponse
+    else if ((tagName === 'ul' || tagName === 'ol' || tagName === 'div') && currentQuestion) {
+      const cleanText = currentElement.textContent.trim();
+      if (cleanText) {
+        currentAnswer.push(cleanText);
+      }
+    }
+
+    currentElement = currentElement.nextElementSibling;
+  }
+
+  // Sauvegarder la dernière FAQ
+  saveCurrentFaq();
+
+  if (faqs.length === 0) return null;
+
+  // Générer le JSON-LD schema.org
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map(faq => ({
+      "@type": "Question",
+      "name": faq.question,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": faq.answer
+      }
+    }))
+  };
+
+  return schema;
+};
+
+// Fonction pour ajouter le schema FAQ au contenu HTML
+export const addFaqSchemaToContent = (htmlContent) => {
+  const schema = generateFaqSchema(htmlContent);
+
+  if (!schema) return htmlContent;
+
+  const scriptTag = `<script type="application/ld+json">
+${JSON.stringify(schema, null, 2)}
+</script>`;
+
+  return htmlContent + '\n\n' + scriptTag;
 };

@@ -78,6 +78,34 @@ export const authAPI = {
   getCurrentUser: async () => {
     return fetchWithAuth('/auth/me');
   },
+
+  changePassword: async (currentPassword, newPassword) => {
+    return fetchWithAuth('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  },
+
+  updateProfile: async (profileData) => {
+    return fetchWithAuth('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  },
+
+  deleteAccount: async (password) => {
+    return fetchWithAuth('/auth/delete-account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    });
+  },
+
+  changeEmail: async (newEmail, password) => {
+    return fetchWithAuth('/auth/change-email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail, password }),
+    });
+  },
 };
 
 // Articles API

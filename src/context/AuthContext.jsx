@@ -105,6 +105,61 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      const response = await authAPI.changePassword(currentPassword, newPassword);
+      return { success: true, message: response.message };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
+  const updateProfile = async (profileData) => {
+    try {
+      const response = await authAPI.updateProfile(profileData);
+      if (response.user) {
+        setUser(response.user);
+        const storedData = sessionStorage.getItem('user');
+        if (storedData) {
+          const parsed = JSON.parse(storedData);
+          sessionStorage.setItem('user', JSON.stringify({
+            token: parsed.token,
+            user: response.user
+          }));
+        }
+      }
+      return { success: true, message: response.message };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
+  const deleteAccount = async (password) => {
+    try {
+      await authAPI.deleteAccount(password);
+      logout();
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
+  const changeEmail = async (newEmail, password) => {
+    try {
+      const response = await authAPI.changeEmail(newEmail, password);
+      if (response.user && response.token) {
+        setUser(response.user);
+        sessionStorage.setItem('user', JSON.stringify({
+          token: response.token,
+          user: response.user
+        }));
+      }
+      return { success: true, message: response.message };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
   // Refresh user data from API (useful after role change)
   const refreshUser = async () => {
     try {
@@ -145,6 +200,10 @@ export const AuthProvider = ({ children }) => {
       logout,
       register,
       resetPassword,
+      changePassword,
+      changeEmail,
+      updateProfile,
+      deleteAccount,
       refreshUser,
       isSuperAdmin,
       isAdmin,

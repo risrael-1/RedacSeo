@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ArticlesProvider } from './context/ArticlesContext'
 import { ProjectsProvider } from './context/ProjectsContext'
 import { SeoCriteriaProvider } from './context/SeoCriteriaContext'
+import { UnsavedChangesProvider } from './context/UnsavedChangesContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')).render(
       <ProjectsProvider>
         <SeoCriteriaProvider>
           <ArticlesProvider>
-            <App />
+            <UnsavedChangesProvider>
+              <App />
+            </UnsavedChangesProvider>
           </ArticlesProvider>
         </SeoCriteriaProvider>
       </ProjectsProvider>
