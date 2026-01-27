@@ -6,7 +6,8 @@ const CriteriaGrid = ({
   isDefault,
   onToggle,
   onEdit,
-  onDelete
+  onDelete,
+  canManage = true
 }) => {
   if (loading) {
     return (
@@ -27,6 +28,7 @@ const CriteriaGrid = ({
           onToggle={onToggle}
           onEdit={onEdit}
           onDelete={onDelete}
+          canManage={canManage}
         />
       ))}
     </div>

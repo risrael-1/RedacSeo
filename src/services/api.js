@@ -54,10 +54,14 @@ const fetchWithAuth = async (url, options = {}) => {
 
 // Auth API
 export const authAPI = {
-  register: async (email, password) => {
+  register: async (email, password, accountType = 'individual', organizationName = null) => {
+    const body = { email, password, accountType };
+    if (accountType === 'organization' && organizationName) {
+      body.organizationName = organizationName;
+    }
     return fetchWithAuth('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
     });
   },
 
@@ -176,10 +180,20 @@ export const usersAPI = {
     return fetchWithAuth('/users');
   },
 
+  getAdminStats: async () => {
+    return fetchWithAuth('/users/admin/stats');
+  },
+
   updateRole: async (userId, role) => {
     return fetchWithAuth(`/users/${userId}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),
+    });
+  },
+
+  deleteUser: async (userId) => {
+    return fetchWithAuth(`/users/${userId}`, {
+      method: 'DELETE',
     });
   },
 
@@ -212,6 +226,18 @@ export const usersAPI = {
   removeProjectMember: async (projectId, memberId) => {
     return fetchWithAuth(`/users/projects/${projectId}/members/${memberId}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Organization members assignment to projects
+  getOrgMembersForAssignment: async (projectId) => {
+    return fetchWithAuth(`/users/projects/${projectId}/org-members`);
+  },
+
+  assignOrgMemberToProject: async (projectId, userId, role = 'member') => {
+    return fetchWithAuth(`/users/projects/${projectId}/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
     });
   },
 };
@@ -257,6 +283,121 @@ export const seoCriteriaAPI = {
   resetToDefault: async () => {
     return fetchWithAuth('/seo-criteria/reset', {
       method: 'POST',
+    });
+  },
+};
+
+// Organizations API
+export const organizationsAPI = {
+  getMine: async () => {
+    return fetchWithAuth('/organizations/mine');
+  },
+
+  getAll: async () => {
+    return fetchWithAuth('/organizations');
+  },
+
+  getOne: async (id) => {
+    return fetchWithAuth(`/organizations/${id}`);
+  },
+
+  create: async (organizationData) => {
+    return fetchWithAuth('/organizations', {
+      method: 'POST',
+      body: JSON.stringify(organizationData),
+    });
+  },
+
+  update: async (id, organizationData) => {
+    return fetchWithAuth(`/organizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(organizationData),
+    });
+  },
+
+  delete: async (id) => {
+    return fetchWithAuth(`/organizations/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Organization members
+  getMembers: async (organizationId) => {
+    return fetchWithAuth(`/organizations/${organizationId}/members`);
+  },
+
+  addMember: async (organizationId, userId, role = 'member') => {
+    return fetchWithAuth(`/organizations/${organizationId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role }),
+    });
+  },
+
+  inviteMember: async (organizationId, email, role = 'member') => {
+    return fetchWithAuth(`/organizations/${organizationId}/invite`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+  },
+
+  updateMemberRole: async (organizationId, memberId, role) => {
+    return fetchWithAuth(`/organizations/${organizationId}/members/${memberId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  removeMember: async (organizationId, memberId) => {
+    return fetchWithAuth(`/organizations/${organizationId}/members/${memberId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Invitations
+  getInvitations: async (organizationId) => {
+    return fetchWithAuth(`/organizations/${organizationId}/invitations`);
+  },
+
+  cancelInvitation: async (organizationId, invitationId) => {
+    return fetchWithAuth(`/organizations/${organizationId}/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  acceptInvitation: async (token) => {
+    return fetchWithAuth(`/organizations/invitations/${token}/accept`, {
+      method: 'POST',
+    });
+  },
+
+  // My pending invitations (for invited users)
+  getMyPendingInvitations: async () => {
+    return fetchWithAuth('/organizations/my/invitations');
+  },
+
+  acceptInvitationById: async (invitationId) => {
+    return fetchWithAuth(`/organizations/my/invitations/${invitationId}/accept`, {
+      method: 'POST',
+    });
+  },
+
+  declineInvitationById: async (invitationId) => {
+    return fetchWithAuth(`/organizations/my/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Logo
+  uploadLogo: async (organizationId, logoBase64) => {
+    return fetchWithAuth(`/organizations/${organizationId}/logo`, {
+      method: 'POST',
+      body: JSON.stringify({ logo_base64: logoBase64 }),
+    });
+  },
+
+  deleteLogo: async (organizationId) => {
+    return fetchWithAuth(`/organizations/${organizationId}/logo`, {
+      method: 'DELETE',
     });
   },
 };

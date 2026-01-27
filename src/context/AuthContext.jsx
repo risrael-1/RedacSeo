@@ -14,6 +14,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Check if user is already logged in on mount and refresh their data
@@ -24,16 +25,19 @@ export const AuthProvider = ({ children }) => {
         try {
           const userData = JSON.parse(storedUser);
           setUser(userData.user);
+          setOrganization(userData.organization || null);
           setIsAuthenticated(true);
 
-          // Refresh user data from API to get latest role
+          // Refresh user data from API to get latest role and organization
           try {
             const response = await authAPI.getCurrentUser();
             if (response.user) {
               setUser(response.user);
+              setOrganization(response.organization || null);
               sessionStorage.setItem('user', JSON.stringify({
                 token: userData.token,
-                user: response.user
+                user: response.user,
+                organization: response.organization || null
               }));
             }
           } catch (refreshError) {
@@ -51,20 +55,22 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  const register = async (email, password) => {
+  const register = async (email, password, accountType = 'individual', organizationName = null) => {
     try {
-      const response = await authAPI.register(email, password);
+      const response = await authAPI.register(email, password, accountType, organizationName);
 
       // Store token and user info in sessionStorage (per-tab, cleared on close)
       sessionStorage.setItem('user', JSON.stringify({
         token: response.token,
-        user: response.user
+        user: response.user,
+        organization: response.organization || null
       }));
 
       setUser(response.user);
+      setOrganization(response.organization || null);
       setIsAuthenticated(true);
 
-      return { success: true, message: response.message };
+      return { success: true, message: response.message, organization: response.organization };
     } catch (error) {
       return { success: false, message: error.message };
     }
@@ -77,10 +83,12 @@ export const AuthProvider = ({ children }) => {
       // Store token and user info in sessionStorage (per-tab, cleared on close)
       sessionStorage.setItem('user', JSON.stringify({
         token: response.token,
-        user: response.user
+        user: response.user,
+        organization: response.organization || null
       }));
 
       setUser(response.user);
+      setOrganization(response.organization || null);
       setIsAuthenticated(true);
 
       return true;
@@ -93,6 +101,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     sessionStorage.removeItem('user');
     setUser(null);
+    setOrganization(null);
     setIsAuthenticated(false);
   };
 
@@ -167,6 +176,7 @@ export const AuthProvider = ({ children }) => {
       if (response.user) {
         // Update user in state
         setUser(response.user);
+        setOrganization(response.organization || null);
 
         // Update sessionStorage (keep the token, update user data)
         const storedData = sessionStorage.getItem('user');
@@ -174,7 +184,8 @@ export const AuthProvider = ({ children }) => {
           const parsed = JSON.parse(storedData);
           sessionStorage.setItem('user', JSON.stringify({
             token: parsed.token,
-            user: response.user
+            user: response.user,
+            organization: response.organization || null
           }));
         }
         return true;
@@ -191,10 +202,33 @@ export const AuthProvider = ({ children }) => {
   const isAdmin = () => user?.role === 'admin' || user?.role === 'super_admin';
   const hasRole = (role) => user?.role === role;
 
+  // Helper functions for account type
+  const isOrganization = () => user?.account_type === 'organization';
+  const isIndividual = () => user?.account_type === 'individual' || !user?.account_type;
+  const isOrgOwner = () => organization?.my_role === 'owner';
+  const isOrgAdmin = () => organization?.my_role === 'admin' || organization?.my_role === 'owner';
+
+  // Check if user can create projects
+  // Super admin, individual accounts, and org owners/admins can create projects
+  // Org members (not owner/admin) cannot create projects
+  const canCreateProjects = () => {
+    if (user?.role === 'super_admin') return true;
+    if (!organization) return true; // Individual account
+    return organization.my_role === 'owner' || organization.my_role === 'admin';
+  };
+
+  // Check if user is an org member only (not owner/admin)
+  // These users must select a project when creating articles
+  const isOrgMemberOnly = () => {
+    if (!organization) return false;
+    return organization.my_role === 'member';
+  };
+
   return (
     <AuthContext.Provider value={{
       isAuthenticated,
       user,
+      organization,
       loading,
       login,
       logout,
@@ -207,7 +241,13 @@ export const AuthProvider = ({ children }) => {
       refreshUser,
       isSuperAdmin,
       isAdmin,
-      hasRole
+      hasRole,
+      isOrganization,
+      isIndividual,
+      isOrgOwner,
+      isOrgAdmin,
+      canCreateProjects,
+      isOrgMemberOnly
     }}>
       {children}
     </AuthContext.Provider>

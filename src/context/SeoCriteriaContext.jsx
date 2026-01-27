@@ -189,6 +189,8 @@ export const SeoCriteriaProvider = ({ children }) => {
   const [criteria, setCriteria] = useState(defaultCriteria);
   const [loading, setLoading] = useState(false);
   const [isDefault, setIsDefault] = useState(true);
+  const [isOrganization, setIsOrganization] = useState(false);
+  const [canManage, setCanManage] = useState(true);
 
   // Load criteria from API when user is authenticated
   useEffect(() => {
@@ -206,10 +208,14 @@ export const SeoCriteriaProvider = ({ children }) => {
       const response = await seoCriteriaAPI.getAll();
       setCriteria(response.criteria || defaultCriteria);
       setIsDefault(response.isDefault || false);
+      setIsOrganization(response.isOrganization || false);
+      setCanManage(response.canManage !== undefined ? response.canManage : true);
     } catch (error) {
       console.error('Failed to load SEO criteria:', error);
       setCriteria(defaultCriteria);
       setIsDefault(true);
+      setIsOrganization(false);
+      setCanManage(true);
     } finally {
       setLoading(false);
     }
@@ -231,6 +237,10 @@ export const SeoCriteriaProvider = ({ children }) => {
   };
 
   const addCriterion = async (criterion) => {
+    if (isOrganization && !canManage) {
+      throw new Error('Vous n\'avez pas les droits pour modifier les critères de l\'organisation');
+    }
+
     if (!isAuthenticated) {
       // Local only
       const newCriterion = { ...criterion, enabled: true };
@@ -249,6 +259,10 @@ export const SeoCriteriaProvider = ({ children }) => {
   };
 
   const updateCriterion = async (criterionId, updatedData) => {
+    if (isOrganization && !canManage) {
+      throw new Error('Vous n\'avez pas les droits pour modifier les critères de l\'organisation');
+    }
+
     if (!isAuthenticated) {
       // Local only
       setCriteria(criteria.map(c =>
@@ -267,6 +281,10 @@ export const SeoCriteriaProvider = ({ children }) => {
   };
 
   const deleteCriterion = async (criterionId) => {
+    if (isOrganization && !canManage) {
+      throw new Error('Vous n\'avez pas les droits pour modifier les critères de l\'organisation');
+    }
+
     if (!isAuthenticated) {
       // Local only
       setCriteria(criteria.filter(c => c.criterion_id !== criterionId));
@@ -283,6 +301,10 @@ export const SeoCriteriaProvider = ({ children }) => {
   };
 
   const toggleCriterion = async (criterionId) => {
+    if (isOrganization && !canManage) {
+      throw new Error('Vous n\'avez pas les droits pour modifier les critères de l\'organisation');
+    }
+
     if (!isAuthenticated) {
       // Local only
       setCriteria(criteria.map(c =>
@@ -301,6 +323,10 @@ export const SeoCriteriaProvider = ({ children }) => {
   };
 
   const resetToDefault = async () => {
+    if (isOrganization && !canManage) {
+      throw new Error('Vous n\'avez pas les droits pour modifier les critères de l\'organisation');
+    }
+
     if (!isAuthenticated) {
       setCriteria(defaultCriteria);
       setIsDefault(true);
@@ -581,6 +607,8 @@ export const SeoCriteriaProvider = ({ children }) => {
       criteria,
       loading,
       isDefault,
+      isOrganization,
+      canManage,
       defaultCriteria,
       addCriterion,
       updateCriterion,

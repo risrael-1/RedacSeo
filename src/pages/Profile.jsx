@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { organizationsAPI } from '../services/api';
 import Navbar from '../components/Navbar';
 import './Profile.css';
 
 const Profile = () => {
-  const { user, changePassword, changeEmail, deleteAccount } = useAuth();
+  const { user, organization, changePassword, changeEmail, deleteAccount, isOrganization, isIndividual, refreshUser } = useAuth();
+
+  // Upgrade to organization state
+  const [showUpgradeForm, setShowUpgradeForm] = useState(false);
+  const [orgName, setOrgName] = useState('');
+  const [orgDescription, setOrgDescription] = useState('');
+  const [upgradeError, setUpgradeError] = useState('');
+  const [upgradeSuccess, setUpgradeSuccess] = useState('');
+  const [isUpgrading, setIsUpgrading] = useState(false);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -116,6 +125,31 @@ const Profile = () => {
     // Si succès, l'utilisateur sera déconnecté automatiquement
   };
 
+  const handleUpgradeToOrganization = async (e) => {
+    e.preventDefault();
+    setUpgradeError('');
+    setUpgradeSuccess('');
+
+    if (!orgName.trim()) {
+      setUpgradeError('Le nom de l\'organisation est obligatoire');
+      return;
+    }
+
+    setIsUpgrading(true);
+    try {
+      await organizationsAPI.create({ name: orgName.trim(), description: orgDescription.trim() });
+      setUpgradeSuccess('Votre compte a été converti en organisation avec succès !');
+      setShowUpgradeForm(false);
+      setOrgName('');
+      setOrgDescription('');
+      await refreshUser();
+    } catch (error) {
+      setUpgradeError(error.message || 'Erreur lors de la conversion du compte');
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
   const getRoleBadge = () => {
     if (!user?.role || user.role === 'user') return null;
 
@@ -178,6 +212,149 @@ const Profile = () => {
                 <span className="detail-value">{formatDate(user?.last_login)}</span>
               </div>
             </div>
+          </div>
+
+          {/* Type de compte */}
+          <div className="profile-card account-type-card">
+            <h3>Type de compte</h3>
+            {isOrganization() ? (
+              /* Cas 1 : Propriétaire d'une organisation (account_type = 'organization') */
+              <div className="account-type-info">
+                <div className="account-type-badge org-badge">
+                  <span className="account-type-icon">🏢</span>
+                  <span>Compte Organisation</span>
+                </div>
+                {organization && (
+                  <div className="account-type-details">
+                    <div className="profile-detail-item">
+                      <span className="detail-label">Organisation</span>
+                      <span className="detail-value">{organization.name}</span>
+                    </div>
+                    <div className="profile-detail-item">
+                      <span className="detail-label">Votre rôle</span>
+                      <span className="detail-value">
+                        {organization.my_role === 'owner' ? 'Propriétaire' :
+                         organization.my_role === 'admin' ? 'Administrateur' : 'Membre'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : organization ? (
+              /* Cas 2 : Individuel invité dans une organisation */
+              <div className="account-type-info">
+                <div className="account-type-badge individual-badge">
+                  <span className="account-type-icon">👤</span>
+                  <span>Compte Individuel</span>
+                </div>
+                <div className="org-membership-info">
+                  <div className="profile-detail-item">
+                    <span className="detail-label">Membre de l'organisation</span>
+                    <span className="detail-value">{organization.name}</span>
+                  </div>
+                  <div className="profile-detail-item">
+                    <span className="detail-label">Votre rôle</span>
+                    <span className="detail-value">
+                      {organization.my_role === 'admin' ? 'Administrateur' : 'Membre'}
+                    </span>
+                  </div>
+                </div>
+                <p className="org-membership-note">
+                  Vous avez été invité dans cette organisation. Votre compte reste individuel.
+                </p>
+              </div>
+            ) : (
+              /* Cas 3 : Individuel pur, peut upgrader */
+              <div className="account-type-info">
+                <div className="account-type-badge individual-badge">
+                  <span className="account-type-icon">👤</span>
+                  <span>Compte Individuel</span>
+                </div>
+
+                {upgradeSuccess && (
+                  <div className="alert alert-success">
+                    <span className="alert-icon">✓</span>
+                    <span>{upgradeSuccess}</span>
+                  </div>
+                )}
+
+                <div className="org-advantages">
+                  <h4>Avantages du compte Organisation</h4>
+                  <ul className="advantages-list">
+                    <li>Invitez des membres dans votre organisation</li>
+                    <li>Gérez les rôles et permissions de vos collaborateurs</li>
+                    <li>Partagez des projets au sein de votre équipe</li>
+                    <li>Assignez directement des membres à vos projets</li>
+                    <li>Page de gestion d'organisation dédiée</li>
+                  </ul>
+                </div>
+
+                {!showUpgradeForm ? (
+                  <button
+                    className="btn btn-upgrade"
+                    onClick={() => setShowUpgradeForm(true)}
+                  >
+                    Passer en compte Organisation
+                  </button>
+                ) : (
+                  <form onSubmit={handleUpgradeToOrganization} className="upgrade-form">
+                    {upgradeError && (
+                      <div className="alert alert-error">
+                        <span className="alert-icon">⚠️</span>
+                        <span>{upgradeError}</span>
+                      </div>
+                    )}
+
+                    <div className="form-group">
+                      <label htmlFor="orgName">Nom de l'organisation *</label>
+                      <input
+                        type="text"
+                        id="orgName"
+                        value={orgName}
+                        onChange={(e) => setOrgName(e.target.value)}
+                        className="form-input"
+                        placeholder="Nom de votre organisation"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="orgDescription">Description (optionnel)</label>
+                      <input
+                        type="text"
+                        id="orgDescription"
+                        value={orgDescription}
+                        onChange={(e) => setOrgDescription(e.target.value)}
+                        className="form-input"
+                        placeholder="Brève description de votre organisation"
+                      />
+                    </div>
+
+                    <div className="upgrade-form-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setShowUpgradeForm(false);
+                          setOrgName('');
+                          setOrgDescription('');
+                          setUpgradeError('');
+                        }}
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn btn-upgrade"
+                        disabled={isUpgrading}
+                      >
+                        {isUpgrading ? 'Conversion...' : 'Confirmer la conversion'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Changer le mot de passe */}

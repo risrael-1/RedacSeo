@@ -192,7 +192,38 @@ Authorization: Bearer votre_token_jwt
 npm run dev      # Démarrer en mode développement (nodemon)
 npm start        # Démarrer en production
 npm run migrate  # Créer les tables (alternative)
+npm test         # Lancer les tests unitaires
+npm run test:watch  # Lancer les tests en mode watch
 ```
+
+## 🧪 Tests
+
+Le backend utilise **Jest** et **Supertest** pour les tests d'API.
+
+### Lancer les tests
+
+```bash
+npm test
+```
+
+### Structure des tests
+
+```
+backend/
+├── tests/
+│   ├── setup.js      # Configuration et helpers
+│   └── auth.test.js  # Tests d'authentification (22 tests)
+```
+
+### Tests disponibles
+
+- **POST /api/auth/register** - Inscription (4 tests)
+- **POST /api/auth/login** - Connexion (4 tests)
+- **GET /api/auth/me** - Utilisateur actuel (3 tests)
+- **POST /api/auth/change-password** - Changement de mot de passe (4 tests)
+- **POST /api/auth/change-email** - Changement d'email (3 tests)
+- **DELETE /api/auth/delete-account** - Suppression de compte (3 tests)
+- **GET /api/health** - Health check (1 test)
 
 ## 🔧 Développement
 

@@ -75,6 +75,16 @@ git push origin main
 git checkout develop  # Retourner sur develop
 ```
 
+### Tests avant déploiement
+
+```bash
+# Tests E2E (frontend)
+npm test
+
+# Tests API (backend)
+cd backend && npm test
+```
+
 ### Créer une Pull Request (recommandé)
 
 1. Push sur `develop`
@@ -149,6 +159,15 @@ git log --oneline -5
 git checkout develop
 git pull origin main
 git push origin develop
+```
+
+### Lancer les tests
+```bash
+# Tests E2E Playwright (22 tests)
+npm test
+
+# Tests API Jest (22 tests)
+cd backend && npm test
 ```
 
 ---

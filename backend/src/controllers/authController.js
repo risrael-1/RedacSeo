@@ -3,21 +3,41 @@ import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
 
 // Generate JWT token
-const generateToken = (userId, email, role) => {
+const generateToken = (userId, email, role, accountType) => {
   return jwt.sign(
-    { userId, email, role },
+    { userId, email, role, accountType },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 };
 
+// Generate URL-friendly slug
+function generateSlug(name) {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 // Register new user
 export const register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, accountType = 'individual', organizationName } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Validate account type
+    if (!['individual', 'organization'].includes(accountType)) {
+      return res.status(400).json({ error: 'Invalid account type' });
+    }
+
+    // Organization name required for organization accounts
+    if (accountType === 'organization' && !organizationName) {
+      return res.status(400).json({ error: 'Organization name is required for organization accounts' });
     }
 
     // Check if user already exists
@@ -38,7 +58,7 @@ export const register = async (req, res) => {
     const { data: newUser, error } = await supabase
       .from('users')
       .insert([
-        { email, password: hashedPassword, role: 'user' }
+        { email, password: hashedPassword, role: 'user', account_type: accountType }
       ])
       .select()
       .single();
@@ -48,15 +68,79 @@ export const register = async (req, res) => {
       return res.status(500).json({ error: 'Failed to create user' });
     }
 
-    // Check for pending invitations and add user to projects
-    const { data: invitations } = await supabase
+    let organization = null;
+
+    // If organization account, create the organization
+    if (accountType === 'organization') {
+      // Generate unique slug
+      let slug = generateSlug(organizationName);
+      let slugExists = true;
+      let slugSuffix = 0;
+
+      while (slugExists) {
+        const checkSlug = slugSuffix > 0 ? `${slug}-${slugSuffix}` : slug;
+        const { data: existing } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('slug', checkSlug)
+          .single();
+
+        if (!existing) {
+          slug = checkSlug;
+          slugExists = false;
+        } else {
+          slugSuffix++;
+        }
+      }
+
+      // Create organization
+      const { data: org, error: orgError } = await supabase
+        .from('organizations')
+        .insert([{
+          name: organizationName,
+          slug,
+          owner_id: newUser.id
+        }])
+        .select()
+        .single();
+
+      if (orgError) {
+        // Rollback user creation
+        await supabase.from('users').delete().eq('id', newUser.id);
+        console.error('Create organization error:', orgError);
+        return res.status(500).json({ error: 'Failed to create organization' });
+      }
+
+      organization = org;
+
+      // Add owner to organization_members
+      const { error: memberError } = await supabase
+        .from('organization_members')
+        .insert([{
+          organization_id: org.id,
+          user_id: newUser.id,
+          role: 'owner',
+          accepted_at: new Date()
+        }]);
+
+      if (memberError) {
+        // Rollback
+        await supabase.from('organizations').delete().eq('id', org.id);
+        await supabase.from('users').delete().eq('id', newUser.id);
+        console.error('Add owner to organization_members error:', memberError);
+        return res.status(500).json({ error: 'Failed to create organization membership' });
+      }
+    }
+
+    // Check for pending project invitations and add user to projects
+    const { data: projectInvitations } = await supabase
       .from('project_invitations')
       .select('*')
       .eq('email', email)
       .gt('expires_at', new Date().toISOString());
 
-    if (invitations && invitations.length > 0) {
-      for (const invitation of invitations) {
+    if (projectInvitations && projectInvitations.length > 0) {
+      for (const invitation of projectInvitations) {
         await supabase
           .from('project_members')
           .insert([{
@@ -75,18 +159,63 @@ export const register = async (req, res) => {
         .eq('email', email);
     }
 
-    // Generate token
-    const token = generateToken(newUser.id, newUser.email, newUser.role || 'user');
+    // Check for pending organization invitations
+    const { data: orgInvitations } = await supabase
+      .from('organization_invitations')
+      .select('*')
+      .eq('email', email)
+      .gt('expires_at', new Date().toISOString());
 
-    res.status(201).json({
+    if (orgInvitations && orgInvitations.length > 0) {
+      for (const invitation of orgInvitations) {
+        await supabase
+          .from('organization_members')
+          .insert([{
+            organization_id: invitation.organization_id,
+            user_id: newUser.id,
+            role: invitation.role,
+            invited_by: invitation.invited_by,
+            accepted_at: new Date()
+          }]);
+
+        // Update user's organization_id
+        await supabase
+          .from('users')
+          .update({ organization_id: invitation.organization_id })
+          .eq('id', newUser.id);
+      }
+
+      // Delete processed invitations
+      await supabase
+        .from('organization_invitations')
+        .delete()
+        .eq('email', email);
+    }
+
+    // Generate token
+    const token = generateToken(newUser.id, newUser.email, newUser.role || 'user', accountType);
+
+    const response = {
       message: 'User registered successfully',
       token,
       user: {
         id: newUser.id,
         email: newUser.email,
-        role: newUser.role || 'user'
+        role: newUser.role || 'user',
+        account_type: accountType
       }
-    });
+    };
+
+    if (organization) {
+      response.organization = {
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        my_role: 'owner'
+      };
+    }
+
+    res.status(201).json(response);
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -120,18 +249,42 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate token
-    const token = generateToken(user.id, user.email, user.role || 'user');
+    const accountType = user.account_type || 'individual';
 
-    res.json({
+    // Generate token
+    const token = generateToken(user.id, user.email, user.role || 'user', accountType);
+
+    const response = {
       message: 'Login successful',
       token,
       user: {
         id: user.id,
         email: user.email,
-        role: user.role || 'user'
+        role: user.role || 'user',
+        account_type: accountType
       }
-    });
+    };
+
+    // If organization account or member, include organization info
+    if (accountType === 'organization' || user.organization_id) {
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select(`
+          role,
+          organization:organizations(id, name, slug)
+        `)
+        .eq('user_id', user.id)
+        .single();
+
+      if (membership?.organization) {
+        response.organization = {
+          ...membership.organization,
+          my_role: membership.role
+        };
+      }
+    }
+
+    res.json(response);
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -183,7 +336,7 @@ export const getCurrentUser = async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, role, created_at')
+      .select('id, email, role, account_type, organization_id, created_at')
       .eq('id', req.user.userId)
       .single();
 
@@ -191,7 +344,35 @@ export const getCurrentUser = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user: { ...user, role: user.role || 'user' } });
+    const accountType = user.account_type || 'individual';
+    const response = {
+      user: {
+        ...user,
+        role: user.role || 'user',
+        account_type: accountType
+      }
+    };
+
+    // If organization account or member, include organization info
+    if (accountType === 'organization' || user.organization_id) {
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select(`
+          role,
+          organization:organizations(id, name, slug)
+        `)
+        .eq('user_id', user.id)
+        .single();
+
+      if (membership?.organization) {
+        response.organization = {
+          ...membership.organization,
+          my_role: membership.role
+        };
+      }
+    }
+
+    res.json(response);
   } catch (error) {
     console.error('Get current user error:', error);
     res.status(500).json({ error: 'Internal server error' });

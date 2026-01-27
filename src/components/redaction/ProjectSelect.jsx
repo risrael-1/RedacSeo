@@ -5,18 +5,38 @@ const ProjectSelect = ({
   projectSearchQuery,
   onProjectSearchChange,
   showProjectDropdown,
-  onShowDropdownChange
+  onShowDropdownChange,
+  required = false,
+  error = ''
 }) => {
-  if (projects.length === 0) return null;
+  // Si required et aucun projet disponible, afficher un message
+  if (projects.length === 0) {
+    if (required) {
+      return (
+        <div className="form-group project-select-container">
+          <label htmlFor="projectSearch">
+            Projet associé <span className="required-field">*</span>
+          </label>
+          <div className="project-required-notice">
+            Vous devez être affecté à un projet pour créer des articles.
+            Contactez un administrateur de votre organisation.
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="form-group project-select-container">
-      <label htmlFor="projectSearch">Projet associé</label>
+      <label htmlFor="projectSearch">
+        Projet associé {required && <span className="required-field">*</span>}
+      </label>
       <div className="project-search-wrapper">
         <input
           type="text"
           id="projectSearch"
-          placeholder="Rechercher un projet..."
+          placeholder={required ? "Sélectionner un projet (obligatoire)..." : "Rechercher un projet..."}
           value={showProjectDropdown ? projectSearchQuery : (projects.find(p => p.id === projectId)?.name || '')}
           onChange={(e) => {
             onProjectSearchChange(e.target.value);
@@ -29,10 +49,10 @@ const ProjectSelect = ({
           onBlur={() => {
             setTimeout(() => onShowDropdownChange(false), 200);
           }}
-          className="project-search-input"
+          className={`project-search-input ${error ? 'input-error' : ''}`}
           autoComplete="off"
         />
-        {projectId && (
+        {projectId && !required && (
           <button
             type="button"
             className="project-clear-btn"
@@ -47,16 +67,18 @@ const ProjectSelect = ({
         )}
         {showProjectDropdown && (
           <div className="project-dropdown">
-            <div
-              className={`project-dropdown-item ${!projectId ? 'selected' : ''}`}
-              onMouseDown={() => {
-                onProjectChange(null);
-                onProjectSearchChange('');
-                onShowDropdownChange(false);
-              }}
-            >
-              Aucun projet
-            </div>
+            {!required && (
+              <div
+                className={`project-dropdown-item ${!projectId ? 'selected' : ''}`}
+                onMouseDown={() => {
+                  onProjectChange(null);
+                  onProjectSearchChange('');
+                  onShowDropdownChange(false);
+                }}
+              >
+                Aucun projet
+              </div>
+            )}
             {projects
               .filter(project =>
                 project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
@@ -84,6 +106,7 @@ const ProjectSelect = ({
           </div>
         )}
       </div>
+      {error && <span className="field-error">{error}</span>}
     </div>
   );
 };

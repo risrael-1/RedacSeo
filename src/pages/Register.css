@@ -194,3 +194,78 @@
 .login-link a:hover {
   text-decoration: underline;
 }
+
+/* Account Type Selector */
+.account-type-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.account-type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.25rem 1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 0.5rem;
+}
+
+.account-type-btn:hover {
+  border-color: #667eea;
+  background: #f5f7ff;
+}
+
+.account-type-btn.active {
+  border-color: #667eea;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.account-type-icon {
+  font-size: 1.75rem;
+}
+
+.account-type-label {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.account-type-desc {
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+}
+
+.account-type-btn.active .account-type-label {
+  color: #667eea;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .account-type-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .account-type-btn {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+    padding: 1rem;
+  }
+
+  .account-type-icon {
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+  }
+
+  .account-type-btn > span:not(.account-type-icon) {
+    display: flex;
+    flex-direction: column;
+  }
+}

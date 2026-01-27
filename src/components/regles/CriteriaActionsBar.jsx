@@ -3,14 +3,26 @@ const CriteriaActionsBar = ({
   showAddForm,
   onToggleAddForm,
   onInitialize,
-  onReset
+  onReset,
+  canManage = true,
+  isOrganization = false
 }) => {
+  if (!canManage) {
+    return (
+      <div className="criteria-actions-bar">
+        <span className="readonly-notice">
+          🔒 Critères en lecture seule
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="criteria-actions-bar">
       {isDefault ? (
         <button onClick={onInitialize} className="action-btn primary">
           <span className="btn-icon">✨</span>
-          Personnaliser les critères
+          {isOrganization ? 'Initialiser les critères de l\'organisation' : 'Personnaliser les critères'}
         </button>
       ) : (
         <>

@@ -22,7 +22,7 @@ export const getUsers = async (req, res) => {
       // Super admin sees all users
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, role, created_at')
+        .select('id, email, role, account_type, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -53,7 +53,7 @@ export const getUsers = async (req, res) => {
         // Get user details
         const { data, error } = await supabase
           .from('users')
-          .select('id, email, role, created_at')
+          .select('id, email, role, account_type, created_at')
           .in('id', userIds)
           .order('created_at', { ascending: false });
 
@@ -66,7 +66,7 @@ export const getUsers = async (req, res) => {
         // Admin has no projects, just return themselves
         const { data } = await supabase
           .from('users')
-          .select('id, email, role, created_at')
+          .select('id, email, role, account_type, created_at')
           .eq('id', userId)
           .single();
 
@@ -604,3 +604,406 @@ function generateInviteToken() {
   }
   return token;
 }
+
+// Get org members available for assignment to a project (not already members)
+export const getOrgMembersForAssignment = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const currentUserId = req.user.userId;
+
+    // Check if user is owner or admin of the project
+    const { data: currentMember } = await supabase
+      .from('project_members')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', currentUserId)
+      .single();
+
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', currentUserId)
+      .single();
+
+    const canAssign = currentUser?.role === 'super_admin' ||
+                      currentMember?.role === 'owner' ||
+                      currentMember?.role === 'admin';
+
+    if (!canAssign) {
+      return res.status(403).json({ error: 'Vous n\'avez pas la permission d\'affecter des membres' });
+    }
+
+    // Get the project's organization
+    const { data: project } = await supabase
+      .from('projects')
+      .select('organization_id')
+      .eq('id', projectId)
+      .single();
+
+    if (!project?.organization_id) {
+      return res.json({ members: [], isOrgProject: false });
+    }
+
+    // Get all org members
+    const { data: orgMembers } = await supabase
+      .from('organization_members')
+      .select(`
+        id,
+        role,
+        user_id,
+        user:users!organization_members_user_id_fkey(id, email)
+      `)
+      .eq('organization_id', project.organization_id);
+
+    // Get current project members
+    const { data: projectMembers } = await supabase
+      .from('project_members')
+      .select('user_id')
+      .eq('project_id', projectId);
+
+    const projectMemberIds = new Set((projectMembers || []).map(pm => pm.user_id));
+
+    // Filter out members already in the project
+    const availableMembers = (orgMembers || [])
+      .filter(om => !projectMemberIds.has(om.user_id))
+      .map(om => ({
+        id: om.id,
+        user_id: om.user_id,
+        org_role: om.role,
+        email: om.user?.email
+      }));
+
+    res.json({ members: availableMembers, isOrgProject: true });
+  } catch (error) {
+    console.error('Get org members for assignment error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Assign an org member directly to a project (no invitation needed)
+export const assignOrgMemberToProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { userId: targetUserId, role = 'member' } = req.body;
+    const currentUserId = req.user.userId;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    if (!['admin', 'member'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be admin or member' });
+    }
+
+    // Check if current user can assign members
+    const { data: currentMember } = await supabase
+      .from('project_members')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', currentUserId)
+      .single();
+
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', currentUserId)
+      .single();
+
+    const canAssign = currentUser?.role === 'super_admin' ||
+                      currentMember?.role === 'owner' ||
+                      currentMember?.role === 'admin';
+
+    if (!canAssign) {
+      return res.status(403).json({ error: 'Vous n\'avez pas la permission d\'affecter des membres' });
+    }
+
+    // Get the project's organization
+    const { data: project } = await supabase
+      .from('projects')
+      .select('organization_id')
+      .eq('id', projectId)
+      .single();
+
+    if (!project?.organization_id) {
+      return res.status(400).json({ error: 'Ce projet n\'appartient pas à une organisation' });
+    }
+
+    // Check if target user is a member of the same organization
+    const { data: targetOrgMembership } = await supabase
+      .from('organization_members')
+      .select('id, role')
+      .eq('organization_id', project.organization_id)
+      .eq('user_id', targetUserId)
+      .single();
+
+    if (!targetOrgMembership) {
+      return res.status(400).json({ error: 'L\'utilisateur n\'est pas membre de cette organisation' });
+    }
+
+    // Check if user already exists in project
+    const { data: existingMember } = await supabase
+      .from('project_members')
+      .select('id')
+      .eq('project_id', projectId)
+      .eq('user_id', targetUserId)
+      .single();
+
+    if (existingMember) {
+      return res.status(400).json({ error: 'L\'utilisateur est déjà membre de ce projet' });
+    }
+
+    // Add member directly (no invitation process)
+    const { data: member, error } = await supabase
+      .from('project_members')
+      .insert([{
+        project_id: projectId,
+        user_id: targetUserId,
+        role,
+        invited_by: currentUserId,
+        accepted_at: new Date()
+      }])
+      .select('id, role, user_id, created_at')
+      .single();
+
+    if (error) {
+      console.error('Assign org member error:', error);
+      return res.status(500).json({ error: 'Failed to assign member to project' });
+    }
+
+    // Get user details
+    const { data: userDetails } = await supabase
+      .from('users')
+      .select('id, email, role')
+      .eq('id', targetUserId)
+      .single();
+
+    res.status(201).json({
+      message: 'Membre affecté au projet avec succès',
+      member: {
+        id: member.id,
+        role: member.role,
+        user_id: member.user_id,
+        created_at: member.created_at,
+        email: userDetails?.email || '',
+        user_role: userDetails?.role || 'user'
+      }
+    });
+  } catch (error) {
+    console.error('Assign org member to project error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Delete user (super_admin only)
+export const deleteUserAsAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUserId = req.user.userId;
+
+    // Check if current user is super_admin
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', currentUserId)
+      .single();
+
+    if (currentUser?.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Seuls les super admins peuvent supprimer des utilisateurs' });
+    }
+
+    // Cannot delete yourself
+    if (id === currentUserId) {
+      return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte depuis l\'admin' });
+    }
+
+    // Check target user exists
+    const { data: targetUser } = await supabase
+      .from('users')
+      .select('id, email, role, account_type')
+      .eq('id', id)
+      .single();
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    // Delete user's articles
+    await supabase
+      .from('articles')
+      .delete()
+      .eq('user_id', id);
+
+    // Delete user's project memberships
+    await supabase
+      .from('project_members')
+      .delete()
+      .eq('user_id', id);
+
+    // Delete projects owned by user (and their members/articles)
+    const { data: ownedProjects } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('owner_id', id);
+
+    if (ownedProjects && ownedProjects.length > 0) {
+      const projectIds = ownedProjects.map(p => p.id);
+
+      await supabase
+        .from('project_members')
+        .delete()
+        .in('project_id', projectIds);
+
+      await supabase
+        .from('articles')
+        .delete()
+        .in('project_id', projectIds);
+
+      await supabase
+        .from('projects')
+        .delete()
+        .eq('owner_id', id);
+    }
+
+    // Delete organization memberships
+    await supabase
+      .from('organization_members')
+      .delete()
+      .eq('user_id', id);
+
+    // If user owns an organization, delete it and its members
+    const { data: ownedOrgs } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_id', id);
+
+    if (ownedOrgs && ownedOrgs.length > 0) {
+      const orgIds = ownedOrgs.map(o => o.id);
+
+      await supabase
+        .from('organization_members')
+        .delete()
+        .in('organization_id', orgIds);
+
+      await supabase
+        .from('organization_invitations')
+        .delete()
+        .in('organization_id', orgIds);
+
+      await supabase
+        .from('organizations')
+        .delete()
+        .eq('owner_id', id);
+    }
+
+    // Finally, delete the user
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Admin delete user error:', deleteError);
+      return res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
+    }
+
+    res.json({ message: 'Utilisateur supprimé avec succès' });
+  } catch (error) {
+    console.error('Admin delete user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get global admin statistics (super_admin only)
+export const getAdminStats = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Check if user is super_admin
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (currentUser?.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Access denied. Super admin only.' });
+    }
+
+    // Get counts in parallel
+    const [usersResult, orgsResult, projectsResult, articlesResult] = await Promise.all([
+      supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('organizations').select('*', { count: 'exact', head: true }),
+      supabase.from('projects').select('*', { count: 'exact', head: true }),
+      supabase.from('articles').select('*', { count: 'exact', head: true })
+    ]);
+
+    // Get users by role
+    const { data: usersByRole } = await supabase
+      .from('users')
+      .select('role');
+
+    const roleStats = {
+      super_admin: 0,
+      admin: 0,
+      user: 0
+    };
+    (usersByRole || []).forEach(u => {
+      if (roleStats[u.role] !== undefined) {
+        roleStats[u.role]++;
+      } else {
+        roleStats.user++;
+      }
+    });
+
+    // Get users by account type
+    const { data: usersByAccountType } = await supabase
+      .from('users')
+      .select('account_type');
+
+    const accountTypeStats = {
+      individual: 0,
+      organization: 0
+    };
+    (usersByAccountType || []).forEach(u => {
+      const type = u.account_type || 'individual';
+      if (accountTypeStats[type] !== undefined) {
+        accountTypeStats[type]++;
+      }
+    });
+
+    // Get recent activity (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [recentUsersResult, recentArticlesResult] = await Promise.all([
+      supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', thirtyDaysAgo.toISOString()),
+      supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', thirtyDaysAgo.toISOString())
+    ]);
+
+    res.json({
+      stats: {
+        totals: {
+          users: usersResult.count || 0,
+          organizations: orgsResult.count || 0,
+          projects: projectsResult.count || 0,
+          articles: articlesResult.count || 0
+        },
+        usersByRole: roleStats,
+        usersByAccountType: accountTypeStats,
+        recent30Days: {
+          newUsers: recentUsersResult.count || 0,
+          newArticles: recentArticlesResult.count || 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get admin stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

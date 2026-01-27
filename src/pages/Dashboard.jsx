@@ -4,6 +4,7 @@ import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
 import { useSeoCriteria } from '../context/SeoCriteriaContext';
 import Navbar from '../components/Navbar';
+import PendingInvitations from '../components/PendingInvitations';
 import { StatsGrid, ProjectFilter, ArticlesList, SeoHelpModal, DeleteArticleModal } from '../components/dashboard';
 import './Dashboard.css';
 
@@ -116,6 +117,8 @@ const Dashboard = () => {
       <Navbar />
 
       <main className="dashboard-main">
+        <PendingInvitations />
+
         <div className="dashboard-actions">
           <h2>Gestion des Articles SEO</h2>
           <button onClick={handleNewArticle} className="add-button">
