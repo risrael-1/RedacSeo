@@ -30,8 +30,8 @@ test.describe('Authentication E2E Tests', () => {
       // Should redirect to dashboard (success message shows briefly then redirects)
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Verify we're logged in by checking navbar
-      await expect(page.locator('text=Déconnexion')).toBeVisible({ timeout: 5000 });
+      // Verify we're logged in by checking navbar user menu
+      await expect(page.locator('.user-menu-trigger')).toBeVisible({ timeout: 5000 });
     });
 
     test('should show error for existing email', async ({ page }) => {
@@ -45,8 +45,9 @@ test.describe('Authentication E2E Tests', () => {
       await page.click('button[type="submit"]');
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Logout
-      await page.click('text=Déconnexion');
+      // Logout via dropdown menu
+      await page.click('.user-menu-trigger');
+      await page.click('.user-dropdown-logout');
       await expect(page).toHaveURL('/');
 
       // Try to register again with same email
@@ -118,8 +119,8 @@ test.describe('Authentication E2E Tests', () => {
       // Should redirect to dashboard
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Should show navbar with logout button
-      await expect(page.locator('text=Déconnexion')).toBeVisible();
+      // Should show navbar with user menu
+      await expect(page.locator('.user-menu-trigger')).toBeVisible();
     });
 
     test('should stay on login page for invalid credentials', async ({ page }) => {
@@ -183,8 +184,9 @@ test.describe('Authentication E2E Tests', () => {
       await page.click('button[type="submit"]');
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Click logout button
-      await page.click('text=Déconnexion');
+      // Click logout via dropdown menu
+      await page.click('.user-menu-trigger');
+      await page.click('.user-dropdown-logout');
 
       // Should redirect to login page
       await expect(page).toHaveURL('/');

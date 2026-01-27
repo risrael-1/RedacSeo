@@ -26,18 +26,63 @@ async function checkProjectPermission(userId, projectId, projectOwnerId) {
     .eq('user_id', userId)
     .single();
 
-  return membership?.role === 'owner' || membership?.role === 'admin';
+  if (membership?.role === 'owner' || membership?.role === 'admin') {
+    return true;
+  }
+
+  // Check if project belongs to an organization where user is owner/admin
+  const { data: project } = await supabase
+    .from('projects')
+    .select('organization_id')
+    .eq('id', projectId)
+    .single();
+
+  if (project?.organization_id) {
+    const { data: orgMembership } = await supabase
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', project.organization_id)
+      .eq('user_id', userId)
+      .single();
+
+    return orgMembership?.role === 'owner' || orgMembership?.role === 'admin';
+  }
+
+  return false;
 }
 
-// Get all projects for a user (including projects they're members of)
+// Helper function to get user's organization ID
+async function getUserOrganizationId(userId) {
+  // Check if user owns an organization
+  const { data: ownedOrg } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('owner_id', userId)
+    .single();
+
+  if (ownedOrg) {
+    return ownedOrg.id;
+  }
+
+  // Check if user is a member of an organization
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', userId)
+    .single();
+
+  return membership?.organization_id || null;
+}
+
+// Get all projects for a user (including projects they're members of and organization projects)
 export const getProjects = async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    // Get user's role
+    // Get user's role and account type
     const { data: currentUser } = await supabase
       .from('users')
-      .select('role')
+      .select('role, account_type')
       .eq('id', userId)
       .single();
 
@@ -49,7 +94,8 @@ export const getProjects = async (req, res) => {
         .from('projects')
         .select(`
           *,
-          owner:users!projects_user_id_fkey(id, email)
+          owner:users!projects_user_id_fkey(id, email),
+          organization:organizations(id, name, slug)
         `)
         .order('updated_at', { ascending: false });
 
@@ -67,7 +113,10 @@ export const getProjects = async (req, res) => {
       // Get projects user owns
       const { data: ownedProjects } = await supabase
         .from('projects')
-        .select('*')
+        .select(`
+          *,
+          organization:organizations(id, name, slug)
+        `)
         .eq('user_id', userId);
 
       // Auto-fix: ensure owner is in project_members for all owned projects
@@ -93,26 +142,55 @@ export const getProjects = async (req, res) => {
         }
       }
 
-      // Get projects user is a member of
+      // Get projects user is a member of (via project_members)
       const { data: memberProjects } = await supabase
         .from('project_members')
         .select(`
           role,
-          project:projects(*)
+          project:projects(*,
+            organization:organizations(id, name, slug)
+          )
         `)
         .eq('user_id', userId);
 
-      // Combine and deduplicate - prioritize role from project_members
+      // Get user's organization membership
+      const { data: orgMembership } = await supabase
+        .from('organization_members')
+        .select('organization_id, role')
+        .eq('user_id', userId)
+        .single();
+
+      // Combine and deduplicate projects
       const projectMap = new Map();
 
-      // First add from memberProjects (has the correct role)
+      // For org owners/admins: get all organization projects
+      // For org members: they only see projects via project_members (already fetched above)
+      if (orgMembership && (orgMembership.role === 'owner' || orgMembership.role === 'admin')) {
+        const { data: organizationProjects } = await supabase
+          .from('projects')
+          .select(`
+            *,
+            organization:organizations(id, name, slug)
+          `)
+          .eq('organization_id', orgMembership.organization_id);
+
+        (organizationProjects || []).forEach(p => {
+          projectMap.set(p.id, {
+            ...p,
+            my_role: p.user_id === userId ? 'owner' : `org_${orgMembership.role}`
+          });
+        });
+      }
+
+      // Add from memberProjects (has the correct role, overrides org role if applicable)
+      // This includes projects org members are explicitly assigned to
       (memberProjects || []).forEach(pm => {
         if (pm.project) {
           projectMap.set(pm.project.id, { ...pm.project, my_role: pm.role });
         }
       });
 
-      // Then add owned projects that might not be in memberProjects yet
+      // Add owned projects that might not be in memberProjects yet
       (ownedProjects || []).forEach(p => {
         if (!projectMap.has(p.id)) {
           projectMap.set(p.id, { ...p, my_role: 'owner' });
@@ -186,6 +264,30 @@ export const createProject = async (req, res) => {
       return res.status(400).json({ error: 'Project name is required' });
     }
 
+    // Get user's account type and organization membership
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('role, account_type')
+      .eq('id', userId)
+      .single();
+
+    // Check if user is in an organization (as member, not owner)
+    const { data: orgMembership } = await supabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('user_id', userId)
+      .single();
+
+    // If user is a non-admin org member, deny project creation
+    if (orgMembership && orgMembership.role === 'member') {
+      return res.status(403).json({
+        error: 'Les membres d\'organisation ne peuvent pas créer de projets. Seuls les administrateurs et propriétaires de l\'organisation peuvent créer des projets.'
+      });
+    }
+
+    // Get user's organization ID (if they're part of an organization)
+    const organizationId = await getUserOrganizationId(userId);
+
     const { data: project, error } = await supabase
       .from('projects')
       .insert([
@@ -193,10 +295,14 @@ export const createProject = async (req, res) => {
           user_id: userId,
           name,
           description: description || '',
-          color: color || '#667eea'
+          color: color || '#667eea',
+          organization_id: organizationId
         }
       ])
-      .select()
+      .select(`
+        *,
+        organization:organizations(id, name, slug)
+      `)
       .single();
 
     if (error) {

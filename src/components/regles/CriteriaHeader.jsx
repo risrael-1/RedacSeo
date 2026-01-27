@@ -1,10 +1,12 @@
-const CriteriaHeader = ({ criteriaCount, totalPoints, activeCount }) => {
+const CriteriaHeader = ({ criteriaCount, totalPoints, activeCount, isOrganization }) => {
   return (
     <div className="regles-page-header">
       <div className="header-content">
-        <h2>Critères SEO</h2>
+        <h2>{isOrganization ? 'Critères SEO (Organisation)' : 'Critères SEO'}</h2>
         <p className="header-subtitle">
-          Configurez les critères d'évaluation de vos articles
+          {isOrganization
+            ? "Critères d'évaluation partagés par votre organisation"
+            : "Configurez les critères d'évaluation de vos articles"}
         </p>
       </div>
       <div className="header-stats">

@@ -3,6 +3,7 @@ import { useArticles } from '../context/ArticlesContext';
 import { useProjects } from '../context/ProjectsContext';
 import { useSeoCriteria } from '../context/SeoCriteriaContext';
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import { SeoScorePanel, ArticlesSidebar, KeywordsSection, SeoFieldsSection, ContentEditor, ProjectSelect } from '../components/redaction';
 import { ConfirmPopup, SavePopup } from '../components/common';
@@ -23,6 +24,7 @@ const Redaction = () => {
   const [showSavePopup, setShowSavePopup] = useState(false);
   const [showClearPopup, setShowClearPopup] = useState(false);
   const [articleNameError, setArticleNameError] = useState('');
+  const [projectError, setProjectError] = useState('');
   const [seoFieldsEnabled, setSeoFieldsEnabled] = useState(true);
   const [copiedField, setCopiedField] = useState(null);
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
@@ -34,6 +36,10 @@ const Redaction = () => {
   const { projects } = useProjects();
   const { calculateScore, getAllCriteriaStatus } = useSeoCriteria();
   const { markAsUnsaved, markAsSaved, registerSaveCallback } = useUnsavedChanges();
+  const { isOrgMemberOnly } = useAuth();
+
+  // Les membres d'organisation (non admin/owner) doivent sélectionner un projet
+  const projectRequired = isOrgMemberOnly();
 
   const hasUserModified = useRef(false);
   const currentArticleIdRef = useRef(null);
@@ -178,7 +184,17 @@ const Redaction = () => {
       return;
     }
 
+    // Vérifier si un projet est requis (membres d'organisation)
+    if (projectRequired && !projectId) {
+      setProjectError('Vous devez sélectionner un projet');
+      if (showAlert) {
+        alert('⚠️ Vous devez sélectionner un projet pour sauvegarder');
+      }
+      return;
+    }
+
     setArticleNameError('');
+    setProjectError('');
     const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
     const seoResult = calculateScore(content, title, metaDescription, keyword, seoFieldsEnabled);
 
@@ -519,11 +535,13 @@ const Redaction = () => {
             <ProjectSelect
               projects={projects}
               projectId={projectId}
-              onProjectChange={(id) => { setProjectId(id); markAsModified(); }}
+              onProjectChange={(id) => { setProjectId(id); setProjectError(''); markAsModified(); }}
               projectSearchQuery={projectSearchQuery}
               onProjectSearchChange={setProjectSearchQuery}
               showProjectDropdown={showProjectDropdown}
               onShowDropdownChange={setShowProjectDropdown}
+              required={projectRequired}
+              error={projectError}
             />
 
             <KeywordsSection

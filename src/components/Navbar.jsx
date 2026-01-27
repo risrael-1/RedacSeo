@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
@@ -5,10 +6,23 @@ import { UnsavedChangesPopup } from './common';
 import './Navbar.css';
 
 const Navbar = () => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isOrganization, organization, isOrgAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { hasUnsavedChanges, requestNavigation } = useUnsavedChanges();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  // Fermer le menu si on clique en dehors
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleLogout = () => {
     if (hasUnsavedChanges) {
@@ -83,26 +97,73 @@ const Navbar = () => {
                   Admin
                 </a>
               )}
+              {(isOrganization() || isOrgAdmin()) && (
+                <a
+                  href="/organization"
+                  onClick={(e) => { e.preventDefault(); handleNavigation(e, '/organization'); if (!hasUnsavedChanges) navigate('/organization'); }}
+                  className={`nav-link org-link ${isActive('/organization') ? 'active' : ''}`}
+                >
+                  Organisation
+                </a>
+              )}
             </div>
           </div>
-          <div className="navbar-right">
-            <a
-              href="/profile"
-              onClick={(e) => { e.preventDefault(); handleNavigation(e, '/profile'); if (!hasUnsavedChanges) navigate('/profile'); }}
-              className={`user-profile-link ${isActive('/profile') ? 'active' : ''}`}
-              title="Mon profil"
+          <div className="navbar-right" ref={menuRef}>
+            <button
+              className="user-menu-trigger"
+              onClick={() => setShowUserMenu(!showUserMenu)}
             >
               <span className="user-avatar">{user?.email?.charAt(0).toUpperCase()}</span>
-              <span className="user-email">{user?.email}</span>
-            </a>
-            {user?.role && user.role !== 'user' && (
-              <span className={`user-role-badge ${user.role === 'super_admin' ? 'super' : ''}`}>
-                {user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-              </span>
-            )}
-            <button onClick={handleLogout} className="logout-button">
-              Déconnexion
+              <span className="user-menu-arrow">{showUserMenu ? '▲' : '▼'}</span>
             </button>
+
+            {showUserMenu && (
+              <div className="user-dropdown">
+                <div className="user-dropdown-header">
+                  <div className="user-dropdown-avatar">{user?.email?.charAt(0).toUpperCase()}</div>
+                  <div className="user-dropdown-info">
+                    <span className="user-dropdown-email">{user?.email}</span>
+                    {user?.role && user.role !== 'user' && (
+                      <span className={`user-dropdown-role ${user.role === 'super_admin' ? 'super' : ''}`}>
+                        {user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {organization && (
+                  <div className="user-dropdown-org">
+                    <span className="user-dropdown-org-label">Organisation</span>
+                    <span className="user-dropdown-org-name">{organization.name}</span>
+                    <span className="user-dropdown-org-role">
+                      {organization.my_role === 'owner' ? 'Propriétaire' :
+                       organization.my_role === 'admin' ? 'Admin' : 'Membre'}
+                    </span>
+                  </div>
+                )}
+
+                <div className="user-dropdown-links">
+                  <a
+                    href="/profile"
+                    className="user-dropdown-link"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowUserMenu(false);
+                      handleNavigation(e, '/profile');
+                      if (!hasUnsavedChanges) navigate('/profile');
+                    }}
+                  >
+                    Mon profil
+                  </a>
+                </div>
+
+                <div className="user-dropdown-footer">
+                  <button onClick={() => { setShowUserMenu(false); handleLogout(); }} className="user-dropdown-logout">
+                    Déconnexion
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </nav>

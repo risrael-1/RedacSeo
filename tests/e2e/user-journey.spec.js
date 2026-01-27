@@ -19,8 +19,8 @@ test.describe('Complete User Journey', () => {
       // Wait for redirect to dashboard (success message appears briefly then redirects after 1.5s)
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Verify we're logged in by checking navbar has logout button
-      await expect(page.locator('text=Déconnexion')).toBeVisible({ timeout: 5000 });
+      // Verify we're logged in by checking navbar user menu
+      await expect(page.locator('.user-menu-trigger')).toBeVisible({ timeout: 5000 });
     });
 
     test('2. Navigate to Redaction page', async ({ page }) => {
@@ -48,8 +48,9 @@ test.describe('Complete User Journey', () => {
       await page.click('button[type="submit"]');
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Navigate to Profile via the user profile link
-      await page.click('.user-profile-link');
+      // Navigate to Profile via dropdown menu
+      await page.click('.user-menu-trigger');
+      await page.click('.user-dropdown-link');
       await expect(page).toHaveURL(/profile/);
 
       // Verify profile page content
@@ -64,8 +65,9 @@ test.describe('Complete User Journey', () => {
       await page.click('button[type="submit"]');
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Go to Profile
-      await page.click('.user-profile-link');
+      // Go to Profile via dropdown menu
+      await page.click('.user-menu-trigger');
+      await page.click('.user-dropdown-link');
       await expect(page).toHaveURL(/profile/);
 
       // Fill password change form
@@ -99,8 +101,9 @@ test.describe('Complete User Journey', () => {
       await page.click('button[type="submit"]');
       await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
-      // Go to Profile
-      await page.click('.user-profile-link');
+      // Go to Profile via dropdown menu
+      await page.click('.user-menu-trigger');
+      await page.click('.user-dropdown-link');
       await expect(page).toHaveURL(/profile/);
 
       // Click delete account button

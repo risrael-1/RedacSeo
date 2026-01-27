@@ -12,7 +12,7 @@ const Projects = () => {
   const navigate = useNavigate();
   const { projects, loading, loadProjects, createProject, updateProject, deleteProject } = useProjects();
   const { articles, loadArticle } = useArticles();
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, canCreateProjects } = useAuth();
 
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
@@ -33,6 +33,11 @@ const Projects = () => {
   const [inviteRole, setInviteRole] = useState('member');
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
+
+  // États pour l'affectation des membres d'organisation
+  const [isOrgProject, setIsOrgProject] = useState(false);
+  const [orgMembers, setOrgMembers] = useState([]);
+  const [loadingOrgMembers, setLoadingOrgMembers] = useState(false);
 
   const filteredProjects = projects.filter(project =>
     project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -78,7 +83,29 @@ const Projects = () => {
     setInviteRole('member');
     setInviteError('');
     setInviteSuccess('');
+    setOrgMembers([]);
+    setIsOrgProject(false);
+
+    // Charger les membres du projet
     await loadProjectMembers(project.id);
+
+    // Charger les membres de l'organisation disponibles (si projet d'organisation)
+    await loadOrgMembersForAssignment(project.id);
+  };
+
+  const loadOrgMembersForAssignment = async (projectId) => {
+    try {
+      setLoadingOrgMembers(true);
+      const response = await usersAPI.getOrgMembersForAssignment(projectId);
+      setIsOrgProject(response.isOrgProject);
+      setOrgMembers(response.members || []);
+    } catch (err) {
+      console.error('Error loading org members:', err);
+      setOrgMembers([]);
+      setIsOrgProject(false);
+    } finally {
+      setLoadingOrgMembers(false);
+    }
   };
 
   const loadProjectMembers = async (projectId) => {
@@ -113,6 +140,19 @@ const Projects = () => {
       await loadProjects();
     } catch (err) {
       setInviteError(err.message || 'Erreur lors de l\'invitation');
+    }
+  };
+
+  const handleAssignOrgMember = async (userId, role) => {
+    try {
+      setInviteError('');
+      await usersAPI.assignOrgMemberToProject(membersProject.id, userId, role);
+      setInviteSuccess('Membre affecté au projet avec succès');
+      await loadProjectMembers(membersProject.id);
+      await loadOrgMembersForAssignment(membersProject.id);
+      await loadProjects();
+    } catch (err) {
+      setInviteError(err.message || 'Erreur lors de l\'affectation');
     }
   };
 
@@ -240,9 +280,11 @@ const Projects = () => {
                 </button>
               )}
             </div>
-            <button className="btn-primary" onClick={() => handleOpenModal()}>
-              + Nouveau Projet
-            </button>
+            {canCreateProjects() && (
+              <button className="btn-primary" onClick={() => handleOpenModal()}>
+                + Nouveau Projet
+              </button>
+            )}
           </div>
         </div>
 
@@ -319,6 +361,10 @@ const Projects = () => {
           onInvite={handleInvite}
           inviteError={inviteError}
           inviteSuccess={inviteSuccess}
+          isOrgProject={isOrgProject}
+          orgMembers={orgMembers}
+          loadingOrgMembers={loadingOrgMembers}
+          onAssignOrgMember={handleAssignOrgMember}
           onChangeMemberRole={handleChangeMemberRole}
           onRemoveMember={handleRemoveMember}
         />

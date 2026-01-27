@@ -158,57 +158,104 @@ const defaultCriteria = [
   }
 ];
 
-// Get all SEO criteria for a user
+// Helper: Resolve user's organization context for SEO criteria
+async function resolveOrgContext(userId) {
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', userId)
+    .single();
+
+  if (membership) {
+    return {
+      isOrg: true,
+      organizationId: membership.organization_id,
+      orgRole: membership.role,
+      canManage: membership.role === 'owner' || membership.role === 'admin'
+    };
+  }
+
+  return { isOrg: false, organizationId: null, orgRole: null, canManage: false };
+}
+
+// Get all SEO criteria for a user (or their organization)
 export const getSeoCriteria = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const orgContext = await resolveOrgContext(userId);
 
-    const { data: criteria, error } = await supabase
+    let query = supabase
       .from('seo_criteria')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: true });
+
+    if (orgContext.isOrg) {
+      query = query.eq('organization_id', orgContext.organizationId);
+    } else {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: criteria, error } = await query;
 
     if (error) {
       console.error('Get SEO criteria error:', error);
       return res.status(500).json({ error: 'Failed to fetch SEO criteria' });
     }
 
-    // If user has no criteria, return defaults
+    // If no criteria found, return defaults
     if (!criteria || criteria.length === 0) {
       return res.json({
         criteria: defaultCriteria.map(c => ({ ...c, enabled: true })),
-        isDefault: true
+        isDefault: true,
+        isOrganization: orgContext.isOrg,
+        canManage: orgContext.isOrg ? orgContext.canManage : true
       });
     }
 
-    res.json({ criteria, isDefault: false });
+    res.json({
+      criteria,
+      isDefault: false,
+      isOrganization: orgContext.isOrg,
+      canManage: orgContext.isOrg ? orgContext.canManage : true
+    });
   } catch (error) {
     console.error('Get SEO criteria error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Initialize default criteria for a user
+// Initialize default criteria for a user or organization
 export const initializeDefaultCriteria = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const orgContext = await resolveOrgContext(userId);
 
-    // Check if user already has criteria
-    const { data: existingCriteria } = await supabase
-      .from('seo_criteria')
-      .select('id')
-      .eq('user_id', userId)
-      .limit(1);
+    // If org mode, only owners/admins can initialize
+    if (orgContext.isOrg && !orgContext.canManage) {
+      return res.status(403).json({
+        error: 'Seuls les administrateurs peuvent initialiser les critères de l\'organisation'
+      });
+    }
+
+    // Check if criteria already exist
+    let checkQuery = supabase.from('seo_criteria').select('id').limit(1);
+    if (orgContext.isOrg) {
+      checkQuery = checkQuery.eq('organization_id', orgContext.organizationId);
+    } else {
+      checkQuery = checkQuery.eq('user_id', userId);
+    }
+
+    const { data: existingCriteria } = await checkQuery;
 
     if (existingCriteria && existingCriteria.length > 0) {
       return res.status(400).json({ error: 'User already has SEO criteria' });
     }
 
-    // Insert default criteria for the user
+    // Insert default criteria
     const criteriaToInsert = defaultCriteria.map(c => ({
       ...c,
-      user_id: userId,
+      user_id: orgContext.isOrg ? null : userId,
+      organization_id: orgContext.isOrg ? orgContext.organizationId : null,
       enabled: true
     }));
 
@@ -234,24 +281,38 @@ export const upsertCriterion = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { criterion_id, label, description, icon, max_points, enabled, check_type, min_value, max_value, target_value } = req.body;
+    const orgContext = await resolveOrgContext(userId);
+
+    // If org mode, only owners/admins can modify
+    if (orgContext.isOrg && !orgContext.canManage) {
+      return res.status(403).json({
+        error: 'Seuls les administrateurs peuvent modifier les critères de l\'organisation'
+      });
+    }
 
     if (!criterion_id || !label || !check_type) {
       return res.status(400).json({ error: 'criterion_id, label, and check_type are required' });
     }
 
     // Check if criterion exists
-    const { data: existingCriterion } = await supabase
+    let findQuery = supabase
       .from('seo_criteria')
       .select('*')
-      .eq('user_id', userId)
-      .eq('criterion_id', criterion_id)
-      .single();
+      .eq('criterion_id', criterion_id);
+
+    if (orgContext.isOrg) {
+      findQuery = findQuery.eq('organization_id', orgContext.organizationId);
+    } else {
+      findQuery = findQuery.eq('user_id', userId);
+    }
+
+    const { data: existingCriterion } = await findQuery.single();
 
     let result;
 
     if (existingCriterion) {
       // Update existing criterion
-      const { data, error } = await supabase
+      let updateQuery = supabase
         .from('seo_criteria')
         .update({
           label,
@@ -265,10 +326,15 @@ export const upsertCriterion = async (req, res) => {
           target_value,
           updated_at: new Date()
         })
-        .eq('user_id', userId)
-        .eq('criterion_id', criterion_id)
-        .select()
-        .single();
+        .eq('criterion_id', criterion_id);
+
+      if (orgContext.isOrg) {
+        updateQuery = updateQuery.eq('organization_id', orgContext.organizationId);
+      } else {
+        updateQuery = updateQuery.eq('user_id', userId);
+      }
+
+      const { data, error } = await updateQuery.select().single();
 
       if (error) {
         console.error('Update criterion error:', error);
@@ -280,7 +346,8 @@ export const upsertCriterion = async (req, res) => {
       const { data, error } = await supabase
         .from('seo_criteria')
         .insert([{
-          user_id: userId,
+          user_id: orgContext.isOrg ? null : userId,
+          organization_id: orgContext.isOrg ? orgContext.organizationId : null,
           criterion_id,
           label,
           description,
@@ -314,12 +381,26 @@ export const deleteCriterion = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { criterionId } = req.params;
+    const orgContext = await resolveOrgContext(userId);
 
-    const { error } = await supabase
+    if (orgContext.isOrg && !orgContext.canManage) {
+      return res.status(403).json({
+        error: 'Seuls les administrateurs peuvent supprimer les critères de l\'organisation'
+      });
+    }
+
+    let deleteQuery = supabase
       .from('seo_criteria')
       .delete()
-      .eq('user_id', userId)
       .eq('criterion_id', criterionId);
+
+    if (orgContext.isOrg) {
+      deleteQuery = deleteQuery.eq('organization_id', orgContext.organizationId);
+    } else {
+      deleteQuery = deleteQuery.eq('user_id', userId);
+    }
+
+    const { error } = await deleteQuery;
 
     if (error) {
       console.error('Delete criterion error:', error);
@@ -338,27 +419,45 @@ export const toggleCriterion = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { criterionId } = req.params;
+    const orgContext = await resolveOrgContext(userId);
+
+    if (orgContext.isOrg && !orgContext.canManage) {
+      return res.status(403).json({
+        error: 'Seuls les administrateurs peuvent modifier les critères de l\'organisation'
+      });
+    }
 
     // Get current status
-    const { data: criterion, error: fetchError } = await supabase
+    let findQuery = supabase
       .from('seo_criteria')
       .select('enabled')
-      .eq('user_id', userId)
-      .eq('criterion_id', criterionId)
-      .single();
+      .eq('criterion_id', criterionId);
+
+    if (orgContext.isOrg) {
+      findQuery = findQuery.eq('organization_id', orgContext.organizationId);
+    } else {
+      findQuery = findQuery.eq('user_id', userId);
+    }
+
+    const { data: criterion, error: fetchError } = await findQuery.single();
 
     if (fetchError || !criterion) {
       return res.status(404).json({ error: 'Criterion not found' });
     }
 
     // Toggle
-    const { data, error } = await supabase
+    let updateQuery = supabase
       .from('seo_criteria')
       .update({ enabled: !criterion.enabled, updated_at: new Date() })
-      .eq('user_id', userId)
-      .eq('criterion_id', criterionId)
-      .select()
-      .single();
+      .eq('criterion_id', criterionId);
+
+    if (orgContext.isOrg) {
+      updateQuery = updateQuery.eq('organization_id', orgContext.organizationId);
+    } else {
+      updateQuery = updateQuery.eq('user_id', userId);
+    }
+
+    const { data, error } = await updateQuery.select().single();
 
     if (error) {
       console.error('Toggle criterion error:', error);
@@ -377,6 +476,13 @@ export const batchUpdateCriteria = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { criteria } = req.body;
+    const orgContext = await resolveOrgContext(userId);
+
+    if (orgContext.isOrg && !orgContext.canManage) {
+      return res.status(403).json({
+        error: 'Seuls les administrateurs peuvent modifier les critères de l\'organisation'
+      });
+    }
 
     if (!Array.isArray(criteria)) {
       return res.status(400).json({ error: 'criteria must be an array' });
@@ -388,16 +494,22 @@ export const batchUpdateCriteria = async (req, res) => {
       const { criterion_id, label, description, icon, max_points, enabled, check_type, min_value, max_value, target_value } = criterion;
 
       // Check if criterion exists
-      const { data: existingCriterion } = await supabase
+      let findQuery = supabase
         .from('seo_criteria')
         .select('*')
-        .eq('user_id', userId)
-        .eq('criterion_id', criterion_id)
-        .single();
+        .eq('criterion_id', criterion_id);
+
+      if (orgContext.isOrg) {
+        findQuery = findQuery.eq('organization_id', orgContext.organizationId);
+      } else {
+        findQuery = findQuery.eq('user_id', userId);
+      }
+
+      const { data: existingCriterion } = await findQuery.single();
 
       if (existingCriterion) {
         // Update
-        const { data } = await supabase
+        let updateQuery = supabase
           .from('seo_criteria')
           .update({
             label,
@@ -411,18 +523,23 @@ export const batchUpdateCriteria = async (req, res) => {
             target_value,
             updated_at: new Date()
           })
-          .eq('user_id', userId)
-          .eq('criterion_id', criterion_id)
-          .select()
-          .single();
+          .eq('criterion_id', criterion_id);
 
+        if (orgContext.isOrg) {
+          updateQuery = updateQuery.eq('organization_id', orgContext.organizationId);
+        } else {
+          updateQuery = updateQuery.eq('user_id', userId);
+        }
+
+        const { data } = await updateQuery.select().single();
         if (data) updatedCriteria.push(data);
       } else {
         // Insert
         const { data } = await supabase
           .from('seo_criteria')
           .insert([{
-            user_id: userId,
+            user_id: orgContext.isOrg ? null : userId,
+            organization_id: orgContext.isOrg ? orgContext.organizationId : null,
             criterion_id,
             label,
             description,
@@ -452,17 +569,28 @@ export const batchUpdateCriteria = async (req, res) => {
 export const resetToDefault = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const orgContext = await resolveOrgContext(userId);
 
-    // Delete all existing criteria for user
-    await supabase
-      .from('seo_criteria')
-      .delete()
-      .eq('user_id', userId);
+    if (orgContext.isOrg && !orgContext.canManage) {
+      return res.status(403).json({
+        error: 'Seuls les administrateurs peuvent réinitialiser les critères de l\'organisation'
+      });
+    }
+
+    // Delete all existing criteria
+    let deleteQuery = supabase.from('seo_criteria').delete();
+    if (orgContext.isOrg) {
+      deleteQuery = deleteQuery.eq('organization_id', orgContext.organizationId);
+    } else {
+      deleteQuery = deleteQuery.eq('user_id', userId);
+    }
+    await deleteQuery;
 
     // Insert default criteria
     const criteriaToInsert = defaultCriteria.map(c => ({
       ...c,
-      user_id: userId,
+      user_id: orgContext.isOrg ? null : userId,
+      organization_id: orgContext.isOrg ? orgContext.organizationId : null,
       enabled: true
     }));
 

@@ -9,6 +9,7 @@ import Regles from './pages/Regles';
 import Projects from './pages/Projects';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import Organization from './pages/Organization';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -74,6 +75,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Admin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organization"
+          element={
+            <ProtectedRoute>
+              <Organization />
             </ProtectedRoute>
           }
         />

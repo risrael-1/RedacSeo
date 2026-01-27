@@ -5,6 +5,7 @@ import articlesRoutes from './routes/articlesRoutes.js';
 import projectsRoutes from './routes/projectsRoutes.js';
 import seoCriteriaRoutes from './routes/seoCriteriaRoutes.js';
 import usersRoutes from './routes/usersRoutes.js';
+import organizationsRoutes from './routes/organizationsRoutes.js';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/articles', articlesRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/seo-criteria', seoCriteriaRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/organizations', organizationsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

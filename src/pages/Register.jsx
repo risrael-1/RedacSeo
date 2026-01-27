@@ -7,11 +7,14 @@ const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [accountType, setAccountType] = useState('individual');
+  const [organizationName, setOrganizationName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [orgNameError, setOrgNameError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { register } = useAuth();
@@ -61,6 +64,22 @@ const Register = () => {
     }
   };
 
+  const handleOrgNameChange = (e) => {
+    const value = e.target.value;
+    setOrganizationName(value);
+    setOrgNameError('');
+    setError('');
+  };
+
+  const handleAccountTypeChange = (type) => {
+    setAccountType(type);
+    setOrgNameError('');
+    setError('');
+    if (type === 'individual') {
+      setOrganizationName('');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -68,6 +87,7 @@ const Register = () => {
     setEmailError('');
     setPasswordError('');
     setConfirmPasswordError('');
+    setOrgNameError('');
 
     // Validation
     let hasError = false;
@@ -96,14 +116,27 @@ const Register = () => {
       hasError = true;
     }
 
+    if (accountType === 'organization' && !organizationName.trim()) {
+      setOrgNameError('Le nom de l\'organisation est requis');
+      hasError = true;
+    }
+
     if (hasError) return;
 
     setLoading(true);
 
     try {
-      const result = await register(email, password);
+      const result = await register(
+        email,
+        password,
+        accountType,
+        accountType === 'organization' ? organizationName.trim() : null
+      );
       if (result.success) {
-        setSuccess('Compte créé avec succès! Redirection...');
+        const message = accountType === 'organization'
+          ? `Organisation "${organizationName}" créée avec succès! Redirection...`
+          : 'Compte créé avec succès! Redirection...';
+        setSuccess(message);
         setTimeout(() => {
           navigate('/dashboard');
         }, 1500);
@@ -124,6 +157,47 @@ const Register = () => {
         <p className="register-subtitle">RedacSEO - Gestion de rédaction SEO</p>
 
         <form onSubmit={handleSubmit} className="register-form">
+          {/* Account Type Selection */}
+          <div className="form-group">
+            <label>Type de compte</label>
+            <div className="account-type-selector">
+              <button
+                type="button"
+                className={`account-type-btn ${accountType === 'individual' ? 'active' : ''}`}
+                onClick={() => handleAccountTypeChange('individual')}
+              >
+                <span className="account-type-icon">👤</span>
+                <span className="account-type-label">Individuel</span>
+                <span className="account-type-desc">Pour une utilisation personnelle</span>
+              </button>
+              <button
+                type="button"
+                className={`account-type-btn ${accountType === 'organization' ? 'active' : ''}`}
+                onClick={() => handleAccountTypeChange('organization')}
+              >
+                <span className="account-type-icon">🏢</span>
+                <span className="account-type-label">Organisation</span>
+                <span className="account-type-desc">Pour une équipe ou entreprise</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Organization Name (only for organization accounts) */}
+          {accountType === 'organization' && (
+            <div className="form-group">
+              <label htmlFor="organizationName">Nom de l'organisation</label>
+              <input
+                type="text"
+                id="organizationName"
+                value={organizationName}
+                onChange={handleOrgNameChange}
+                placeholder="Ex: Mon Agence SEO"
+                className={orgNameError ? 'input-error' : ''}
+              />
+              {orgNameError && <span className="field-error">{orgNameError}</span>}
+            </div>
+          )}
+
           <div className="form-group">
             <label htmlFor="email">Email</label>
             <input

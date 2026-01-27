@@ -3,7 +3,8 @@ const CriterionCard = ({
   isDefault,
   onToggle,
   onEdit,
-  onDelete
+  onDelete,
+  canManage = true
 }) => {
   return (
     <div className={`criterion-card ${!criterion.enabled ? 'disabled' : ''}`}>
@@ -41,7 +42,7 @@ const CriterionCard = ({
         </div>
       </div>
 
-      {!isDefault && (
+      {!isDefault && canManage && (
         <div className="criterion-footer">
           <label className="toggle-switch small">
             <input

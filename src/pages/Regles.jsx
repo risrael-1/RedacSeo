@@ -46,6 +46,8 @@ const Regles = () => {
     criteria,
     loading: criteriaLoading,
     isDefault,
+    isOrganization,
+    canManage,
     toggleCriterion,
     deleteCriterion,
     addCriterion,
@@ -152,7 +154,22 @@ const Regles = () => {
           criteriaCount={criteria.length}
           totalPoints={totalPoints}
           activeCount={activeCount}
+          isOrganization={isOrganization}
         />
+
+        {isOrganization && (
+          <div className="org-criteria-banner">
+            <div className="org-banner-icon">🏢</div>
+            <div className="org-banner-content">
+              <strong>Critères d'organisation</strong>
+              <p>
+                {canManage
+                  ? 'Ces critères sont partagés avec tous les membres de votre organisation.'
+                  : 'Ces critères sont définis par les administrateurs de votre organisation. Vous ne pouvez pas les modifier.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         <CriteriaActionsBar
           isDefault={isDefault}
@@ -160,9 +177,11 @@ const Regles = () => {
           onToggleAddForm={() => setShowAddCriterionForm(!showAddCriterionForm)}
           onInitialize={handleInitializeCriteria}
           onReset={handleResetToDefault}
+          canManage={canManage}
+          isOrganization={isOrganization}
         />
 
-        {showAddCriterionForm && (
+        {showAddCriterionForm && canManage && (
           <CriterionForm
             formData={criterionFormData}
             onFormChange={setCriterionFormData}
@@ -181,6 +200,7 @@ const Regles = () => {
           onToggle={toggleCriterion}
           onEdit={handleEditCriterion}
           onDelete={handleDeleteCriterion}
+          canManage={canManage}
         />
 
         <CriteriaInfoFooter isDefault={isDefault} />

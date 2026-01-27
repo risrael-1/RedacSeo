@@ -181,9 +181,133 @@
   gap: 0.75rem;
 }
 
+/* Type de compte */
+.account-type-card h3 {
+  border-bottom-color: #e0e7ff;
+}
+
+.account-type-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.account-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  width: fit-content;
+}
+
+.account-type-badge.org-badge {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #3730a3;
+}
+
+.account-type-badge.individual-badge {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.account-type-icon {
+  font-size: 1.1rem;
+}
+
+.account-type-details,
+.org-membership-info {
+  margin-top: 0.25rem;
+}
+
+.org-membership-note {
+  color: #64748b;
+  font-size: 0.85rem;
+  font-style: italic;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border-radius: 6px;
+  border-left: 3px solid #94a3b8;
+}
+
+.org-advantages {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.org-advantages h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.advantages-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: none;
+}
+
+.advantages-list li {
+  position: relative;
+  padding: 0.3rem 0;
+  color: #475569;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.advantages-list li::before {
+  content: "✓";
+  position: absolute;
+  left: -1.25rem;
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.btn-upgrade {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.65rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.btn-upgrade:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-upgrade:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.upgrade-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.upgrade-form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 /* Alertes dans le formulaire */
 .profile-form .alert,
-.delete-form .alert {
+.delete-form .alert,
+.upgrade-form .alert,
+.account-type-info .alert {
   margin-bottom: 0.5rem;
   padding: 0.75rem 1rem;
   border-radius: 6px;
@@ -194,7 +318,9 @@
 }
 
 .profile-form .alert-icon,
-.delete-form .alert-icon {
+.delete-form .alert-icon,
+.upgrade-form .alert-icon,
+.account-type-info .alert-icon {
   flex-shrink: 0;
 }
 
@@ -223,11 +349,13 @@
     word-break: break-all;
   }
 
-  .delete-actions {
+  .delete-actions,
+  .upgrade-form-actions {
     flex-direction: column;
   }
 
-  .delete-actions .btn {
+  .delete-actions .btn,
+  .upgrade-form-actions .btn {
     width: 100%;
   }
 }
